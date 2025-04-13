@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generatedAt": "2025-04-13T08:30:27.500Z",
+    "generatedAt": "2025-04-13T09:03:05.752Z",
     "tasksAnalyzed": 10,
     "thresholdScore": 5,
     "projectName": "Your Project Name",
@@ -9,83 +9,83 @@
   "complexityAnalysis": [
     {
       "taskId": 1,
-      "taskTitle": "Set up Prisma with SQLite Database",
+      "taskTitle": "Setup Database with Prisma and SQLite",
       "complexityScore": 6,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the Prisma SQLite database setup into logical implementation phases, focusing on installation, schema definition, connection management, and error handling",
-      "reasoning": "This task involves database setup with moderate complexity. It requires technical knowledge of Prisma ORM and database concepts, but follows a standard implementation pattern. The singleton pattern and error handling add some complexity beyond basic setup."
+      "expansionPrompt": "Break down the Prisma SQLite setup task into 4 focused subtasks covering database configuration, schema definition, migration execution, and IPC communication setup between Main and Renderer processes.",
+      "reasoning": "This task involves database setup, schema definition, and inter-process communication, which requires technical knowledge in multiple areas. The complexity comes from integrating Prisma with Electron's architecture and establishing proper communication channels."
     },
     {
       "taskId": 2,
-      "taskTitle": "Implement IPC Communication Layer",
+      "taskTitle": "Implement CSV Import and Parsing",
       "complexityScore": 7,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Divide the IPC communication layer implementation into logical components focusing on security, API definition, handler implementation, and error handling across main and renderer processes",
-      "reasoning": "IPC implementation requires understanding Electron's process model and security considerations. Creating a robust communication layer with proper error handling and type definitions increases complexity. This forms a critical foundation for the application architecture."
+      "expansionPrompt": "Break down the CSV import functionality into 4 subtasks covering file selection UI, parsing implementation, column mapping interface, and validation/storage logic.",
+      "reasoning": "This task involves UI development, third-party library integration (Papaparse), and complex user interactions for column mapping. The validation logic and duplicate detection add significant complexity to ensure data integrity."
     },
     {
       "taskId": 3,
-      "taskTitle": "Create Basic Application Layout",
+      "taskTitle": "Create Transaction View and Data Fetching",
       "complexityScore": 5,
       "recommendedSubtasks": 3,
-      "expansionPrompt": "Break down the UI layout implementation into component structure, navigation system, and responsive design considerations using React and shadcn/ui",
-      "reasoning": "This task involves standard React component creation with moderate complexity. Using shadcn/ui reduces implementation difficulty, but proper state management and responsive design still require careful planning and execution."
+      "expansionPrompt": "Divide the transaction view implementation into 3 subtasks focusing on UI component creation, data fetching logic, and sorting/pagination functionality.",
+      "reasoning": "This task is moderately complex, involving UI development with shadcn components and IPC communication. The sorting and pagination features add some complexity, but the task builds on established patterns from previous tasks."
     },
     {
       "taskId": 4,
-      "taskTitle": "Implement CSV Import and Mapping",
-      "complexityScore": 8,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Divide the CSV import functionality into file handling, data parsing, mapping interface, validation, and transaction processing phases with clear separation of concerns",
-      "reasoning": "This feature has high complexity due to multiple UI interactions, data validation requirements, and integration with both parsing libraries and IPC communication. The column mapping UI and duplicate detection add significant complexity beyond basic file imports."
-    },
-    {
-      "taskId": 5,
-      "taskTitle": "Create Transaction Viewing and Filtering UI",
-      "complexityScore": 7,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down the transaction viewing UI into data fetching/display, filtering implementation, search functionality, and pagination with appropriate state management",
-      "reasoning": "This task involves complex UI interactions with multiple filtering options, search, pagination, and data management. Implementing efficient data fetching and state management across these features requires careful planning and coordination."
-    },
-    {
-      "taskId": 6,
       "taskTitle": "Implement Category Management",
       "complexityScore": 6,
       "recommendedSubtasks": 4,
-      "expansionPrompt": "Divide category management into CRUD operations interface, category assignment UI, batch operations, and persistence implementation with appropriate validation",
-      "reasoning": "This feature requires multiple UI components and database operations. The batch assignment functionality and integration with transaction views add moderate complexity, though the underlying operations follow standard CRUD patterns."
+      "expansionPrompt": "Split the category management implementation into 4 subtasks covering category CRUD operations, UI components for management, transaction assignment functionality, and batch operations.",
+      "reasoning": "This task combines UI development with data management across both transactions and categories. The relationship between these entities and batch operations increases complexity, requiring careful state management."
+    },
+    {
+      "taskId": 5,
+      "taskTitle": "Implement State Management with Zustand",
+      "complexityScore": 7,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the Zustand state management implementation into 4 subtasks covering store setup, selector implementation, component refactoring, and optimization/persistence features.",
+      "reasoning": "Implementing state management requires significant refactoring of existing components and careful consideration of data flow. The complexity comes from ensuring proper state synchronization across components while maintaining performance."
+    },
+    {
+      "taskId": 6,
+      "taskTitle": "Implement Basic Filtering and Unexpected Expense Flagging",
+      "complexityScore": 5,
+      "recommendedSubtasks": 3,
+      "expansionPrompt": "Divide the filtering and expense flagging task into 3 subtasks covering date range filtering UI/logic, schema updates for unexpected expenses, and UI components for flagging transactions.",
+      "reasoning": "This task involves schema updates and UI development but follows established patterns. The complexity is moderate as it builds on existing transaction management functionality with incremental features."
     },
     {
       "taskId": 7,
       "taskTitle": "Implement Rule-Based Categorization",
-      "complexityScore": 7,
-      "recommendedSubtasks": 4,
-      "expansionPrompt": "Break down rule-based categorization into database schema updates, rule management UI, pattern matching engine, and integration with existing transaction processing",
-      "reasoning": "This task involves both data modeling changes and algorithm implementation. The rule matching engine and priority/conflict resolution add significant complexity. Integration with existing transaction flows requires careful coordination."
+      "complexityScore": 8,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the rule-based categorization system into 5 subtasks covering schema updates, rule engine logic, rule creation UI, rule management interface, and integration with transaction import process.",
+      "reasoning": "This task introduces a complex rule engine that requires sophisticated pattern matching and application logic. The integration with existing categorization systems and UI for rule management adds significant complexity."
     },
     {
       "taskId": 8,
-      "taskTitle": "Implement Basic Spending Visualization",
+      "taskTitle": "Implement Basic Visualization with Recharts",
       "complexityScore": 6,
       "recommendedSubtasks": 3,
-      "expansionPrompt": "Divide visualization implementation into data aggregation functions, chart component creation, and interactive features with responsive design considerations",
-      "reasoning": "Implementing data visualizations requires both data processing logic and UI component creation. Using Recharts simplifies implementation, but proper data aggregation and ensuring responsive, interactive charts still presents moderate complexity."
+      "expansionPrompt": "Split the visualization implementation into 3 subtasks covering chart component creation, data aggregation logic, and interactive filtering/styling features.",
+      "reasoning": "Implementing visualizations requires understanding of the Recharts library and complex data aggregation. The interactive elements and responsive design add moderate complexity, though the task is well-contained."
     },
     {
       "taskId": 9,
-      "taskTitle": "Implement Google Gemini Integration",
+      "taskTitle": "Implement Google Gemini API Integration",
       "complexityScore": 8,
-      "recommendedSubtasks": 5,
-      "expansionPrompt": "Break down the AI integration into secure credential management, API client implementation, prompt engineering, UI integration, and error handling with offline support",
-      "reasoning": "This task involves security considerations, external API integration, and complex prompt engineering. Implementing secure API key storage and graceful degradation for offline use adds significant complexity beyond basic API calls."
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Divide the Google Gemini API integration into 4 subtasks covering secure API key management, API client implementation, category suggestion logic, and UI for displaying/confirming AI suggestions.",
+      "reasoning": "This task involves secure credential management, external API integration, and complex AI-based categorization logic. The security requirements and error handling for API calls significantly increase complexity."
     },
     {
       "taskId": 10,
-      "taskTitle": "Implement CSV Mapping Persistence",
-      "complexityScore": 5,
-      "recommendedSubtasks": 3,
-      "expansionPrompt": "Divide CSV mapping persistence into database schema updates, mapping management UI, and format detection/validation logic with clear separation of concerns",
-      "reasoning": "This feature extends existing functionality with moderate complexity. The schema changes are straightforward, and the mapping management follows standard patterns, though format detection adds some algorithmic complexity."
+      "taskTitle": "Implement AI Analysis and Advanced Visualization",
+      "complexityScore": 9,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the AI analysis and advanced visualization task into 5 subtasks covering data aggregation for AI analysis, Gemini API integration for insights, UI for analysis results, trend visualization components, and error handling/offline functionality.",
+      "reasoning": "This is the most complex task, combining advanced AI integration with sophisticated visualization techniques. The task requires careful data preparation for AI analysis, complex charting, and robust error handling for a polished user experience."
     }
   ]
 }
