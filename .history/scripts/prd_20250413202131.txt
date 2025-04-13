@@ -1,0 +1,274 @@
+Okay, let's reformat the PRD content we've discussed into the structure you provided.
+
+---
+
+**Product Requirements Document: Local Ledger (Working Title)**
+
+**Version:** 1.1 (Formatted)
+**Date:** 2023-10-27
+**Author:** [Your Name/AI Assistant]
+
+# Overview
+
+Local Ledger is a desktop application designed individuals who want to track and analyze their personal finances using exported CSV bank statements. The application provides value by consolidating transaction data locally, offering flexible categorization (manual, rule-based, AI-assisted), and leveraging AI for deeper spending insights, all while keeping the core financial data on the user's device.
+
+# Core Features
+
+*   **CSV Data Import & Mapping:**
+    *   *What it does:* Allows users to select and import bank transaction data from one or multiple CSV files. Includes a mapping tool for users to specify which columns correspond to Date, Description, and Amount.
+    *   *Why it's important:* Enables users to get their financial data into the application from various bank formats. Foundational for all other features.
+    *   *How it works:* User selects file(s). If the format is new, a UI prompts the user to map CSV columns to required fields (Date, Description, Amount). This mapping can be saved. The app parses the data based on the mapping, handling common formats and detecting duplicates.
+*   **Local Data Storage:**
+    *   *What it does:* Stores all imported transactions, user-defined categories, and categorization rules on the user's local machine.
+    *   *Why it's important:* Addresses the core user need for data privacy and control, avoiding reliance on third-party cloud storage for sensitive financial data.
+    *   *How it works:* Utilizes a local database file (e.g., SQLite) stored within the application's data directory on the user's computer. No transaction data is transmitted elsewhere unless explicitly used by an AI feature (see below).
+*   **Transaction Categorization (Manual, Rule-Based, AI-Assisted):**
+    *   *What it does:* Allows users to assign spending categories to transactions. Supports manual assignment, automatic assignment based on user-defined rules (matching vendor/description), and optional AI suggestions (using Google Gemini) for transactions from new vendors.
+    *   *Why it's important:* Turns raw transaction data into meaningful information about spending habits. Automation reduces manual effort.
+    *   *How it works:* Users can select transactions and choose a category. The system checks imported transactions against saved rules (Vendor Pattern -> Category). If no rule matches, it *optionally* sends the description to Gemini for a suggestion, which the user must confirm/override. Confirmed categorizations can generate new rules. Users can manage (CRUD) their own list of categories.
+*   **"Unexpected Expense" Flagging:**
+    *   *What it does:* Allows users to mark individual transactions as "Unexpected".
+    *   *Why it's important:* Helps users isolate and track non-routine expenses separately from regular spending.
+    *   *How it works:* A simple boolean flag associated with each transaction, toggled via the UI.
+*   **Data Viewing, Filtering & Sorting:**
+    *   *What it does:* Displays transactions in a clear list/table format. Provides tools to filter data by date range, category, unexpected status, or uncategorized status. Allows sorting by key columns.
+    *   *Why it's important:* Enables users to easily navigate, explore, and focus on specific subsets of their financial data.
+    *   *How it works:* A dedicated UI view displays transactions. Filter controls (date pickers, dropdowns, checkboxes) modify the displayed dataset. Table headers allow sorting.
+*   **Spending Analysis & Visualization:**
+    *   *What it does:* Provides visual summaries of spending data, including category breakdowns (pie/donut charts) and spending trends over time (line/bar charts) based on filtered data. Offers optional AI-powered analysis (using Google Gemini) to identify potential savings and anomalies.
+    *   *Why it's important:* Helps users quickly understand spending patterns, track category trends, and discover actionable insights without manual calculation.
+    *   *How it works:* A reporting/dashboard section renders charts using a charting library based on the current transaction filter. An "Analyze with AI" button sends aggregated, anonymized summary data (e.g., category totals per period) for the filtered view to Gemini, displaying the textual insights received.
+*   **Configuration Management:**
+    *   *What it does:* Allows users to manage application settings, including their Google Gemini API key (stored securely), spending categories, and saved CSV mappings.
+    *   *Why it's important:* Provides necessary user control over application behavior, external service integration, and data structure definitions.
+    *   *How it works:* A dedicated settings area provides interfaces for API key input (using OS secure storage), category CRUD operations, and viewing/managing saved CSV mappings.
+
+# User Experience
+
+*   **Key User Flows:**
+    *   *Initial Setup:* Install App -> Configure Gemini API Key (Optional) -> Import First CSV -> Map Columns -> Save Mapping.
+    *   *Regular Import:* Open App -> Import New CSV(s) -> Review Auto-Categorized Transactions -> Manually Categorize/Confirm AI Suggestions for Uncategorized -> Create Rules for New Vendors.
+    *   *Spending Review:* Open App -> Select Date Range/Filters -> View Transaction List -> View Spending Charts -> Optionally run AI Analysis.
+    *   *Category Management:* Open App -> Go to Settings -> Add/Edit/Delete Categories.
+*   **UI/UX Considerations:**
+    *   **Interface:** Clean, intuitive, and modern look and feel (using `shadcn/ui`). Easy navigation between Import, Transactions, Analysis, and Settings.
+    *   **Feedback:** Provide clear visual feedback during operations like import, categorization, and AI analysis. Indicate loading states.
+    *   **Clarity:** Clearly distinguish between automatically applied categories, AI suggestions needing confirmation, and manually set categories. Clearly label charts and analysis results.
+    *   **Offline Indication:** Clearly indicate when features requiring an internet connection (Gemini Categorization/Analysis) are unavailable or require connection.
+    *   **Error Handling:** Provide user-friendly error messages (e.g., CSV parsing issues, API connection problems).
+    *   **Responsiveness:** Ensure the UI remains responsive during data processing.
+
+Okay, understood. Let's refine the "Technical Architecture" section to present a single, recommended technology choice for each component, removing the alternatives.
+
+---
+
+**Technical Architecture**
+
+*   **System Components:**
+    *   **Electron Shell:** Main process (Node.js environment) handles application lifecycle, window management, background tasks, database access, secure API key storage, and communication with external APIs (Gemini). Renderer process(es) handle the user interface (HTML/CSS/JS).
+    *   **Frontend (Renderer):** Built with **React** and **TypeScript**. UI components provided by **shadcn/ui** styled with **Tailwind CSS**. **Zustand** for state management. **Recharts** for data visualization. **Papaparse** for client-side CSV parsing during import preview/mapping.
+    *   **Backend Logic (Main):** Runs in the Electron main process (Node.js). Uses **TypeScript**. Handles core business logic and interaction with the database.
+    *   **Database:** **SQLite** database stored as a single file locally.
+    *   **Database Access:** **Prisma** ORM for type-safe database interactions with SQLite from the main process.
+    *   **Build & Development Environment:** Managed by **`electron-vite`**.
+        *   *Reasoning:* `electron-vite` provides a pre-configured, optimized build setup specifically for Electron applications using **Vite** as the underlying bundler. It simplifies the configuration for building the main process, preload scripts, and the renderer process (React/TS/Tailwind), enabling Vite's fast HMR (Hot Module Replacement) and optimized production builds within the Electron context.
+    *   **Inter-Process Communication (IPC):** Electron's standard IPC mechanisms (`ipcMain`, `ipcRenderer`, contextBridge) used for secure communication between the Renderer (UI) and Main (database, API calls) processes.
+    *   **API Client:** Node.js built-in **`fetch` API** (within the main process) for communicating with the Google Gemini API.
+
+*   **Data Models (Conceptual - implemented via Prisma):**
+    *   `Transaction`: ID, Date, Description, Amount, CategoryID (FK), IsUnexpected, SourceFile (optional).
+    *   `Category`: ID, Name.
+    *   `CategorizationRule`: ID, VendorPattern (string), CategoryID (FK).
+    *   `CsvMapping`: ID, Name (e.g., "Bank ABC Checking"), MappingConfig (JSON detailing column assignments - Date, Desc, Amount, etc.).
+
+*   **APIs and Integrations:**
+    *   **Google Gemini API:** External REST API called from the main process via `fetch`. Requires user-provided API key. Used for:
+        *   Category suggestion (input: transaction description; output: category name suggestion).
+        *   Spending analysis (input: aggregated, anonymized spending data; output: textual insights).
+    *   **OS Secure Storage:** Integration with platform-specific secure storage (macOS Keychain, Windows Credential Manager, Linux Keyring) via the **`keytar`** library to store the Gemini API key securely.
+
+*   **Infrastructure Requirements:**
+    *   User's local machine (Windows, macOS, Linux - Electron compatibility).
+    *   Sufficient disk space for the application and the SQLite database file.
+    *   Active internet connection *required* for Gemini features (categorization suggestions, AI analysis). Core functionality works offline.
+
+---
+
+Okay, let's update the "Development Roadmap" section with more specific details aligned with the chosen tech stack and a clear progression from MVP to the full feature set.
+
+---
+
+# Development Roadmap
+
+*(Note: This outlines the sequence and scope of development phases, not timelines. Each phase builds upon the previous one, aiming for incremental delivery of value.)*
+
+*   **Phase 1: MVP - Core Local Data Management**
+    *   **Goal:** Establish the foundation for importing, storing, viewing, and manually organizing transaction data locally. Deliver a usable core product quickly.
+    *   **Scope:**
+        *   **Project Setup:** Initialize `electron-vite` project with React, TypeScript, Tailwind CSS. Configure Main, Preload, and Renderer processes.
+        *   **UI Foundation:** Integrate `shadcn/ui`. Set up basic application layout (e.g., sidebar navigation, main content area).
+        *   **Database Setup:** Integrate **SQLite** using **Prisma**. Define initial `Transaction` and `Category` schemas. Implement Prisma migrations.
+        *   **IPC Foundation:** Establish basic Inter-Process Communication between Renderer and Main processes for data requests.
+        *   **CSV Import (Core):**
+            *   UI (Renderer): Component using `shadcn/ui` button/dialog to select CSV file(s).
+            *   Parsing (Renderer/Main): Use **Papaparse** to parse selected CSV.
+            *   MVP Column Mapping (Renderer): Simple UI prompting user to select columns corresponding to 'Date', 'Description', 'Amount'.
+            *   Data Persistence (Main): Logic via IPC to send parsed transaction data to the Main process to be saved to the SQLite database using Prisma. Handle basic duplicates (skip if Date/Desc/Amount match existing).
+        *   **Transaction View (Core):**
+            *   Data Fetching (Renderer): Request transactions from Main process via IPC.
+            *   UI (Renderer): Display transactions in a `shadcn/ui` Table component. Include columns: Date, Description, Amount.
+            *   Basic Sorting: Implement client-side or server-side sorting for the table columns.
+        *   **Category Management (Core):**
+            *   UI (Renderer): Section (e.g., in Settings or dedicated view) using `shadcn/ui` components (Dialog, Form, Table) for Creating, Reading, Updating, Deleting Categories.
+            *   Data Persistence (Main): CRUD operations for Categories via IPC -> Main process -> Prisma.
+        *   **Manual Categorization (Core):**
+            *   UI (Renderer): Mechanism in the Transaction Table (e.g., a dropdown/select using `shadcn/ui`) to assign an existing Category to a Transaction.
+            *   Data Persistence (Main): Update the `Transaction` record's category via IPC -> Main process -> Prisma.
+        *   **Basic Filtering:**
+            *   UI (Renderer): Implement basic date range filtering using `shadcn/ui` DatePicker.
+            *   Logic (Renderer/Main): Filter transactions based on the selected date range.
+
+*   **Phase 2: Automation & Foundational Analysis**
+    *   **Goal:** Reduce manual categorization effort through rules and provide initial visual spending insights. Enhance data handling.
+    *   **Scope:**
+        *   **Database Schema:** Add `CategorizationRule` and `CsvMapping` models/tables using Prisma migrations.
+        *   **Rule-Based Categorization:**
+            *   Rule Engine (Main): Logic executed during/after import to check `Transaction.Description` against `CategorizationRule.VendorPattern` and assign `CategoryID` if a match is found.
+            *   Rule Creation (Implicit): UI prompt (`shadcn/ui` Alert/Dialog) after manual categorization asking the user if they want to create a rule for that vendor/description. Logic in Main process to save the rule.
+        *   **CSV Mapping Persistence:**
+            *   UI (Renderer): Enhance import flow to allow saving a column mapping configuration with a name. Allow selecting saved mappings for future imports.
+            *   Data Persistence (Main): Save/load `CsvMapping` configurations using Prisma.
+        *   **"Unexpected Expense" Flag:**
+            *   Database Schema: Add `isUnexpected` boolean field to `Transaction` model (Prisma migration).
+            *   UI (Renderer): Add a toggle/checkbox (`shadcn/ui` component) in the Transaction view to mark/unmark transactions.
+            *   Data Persistence (Main): Update the flag via IPC -> Main process -> Prisma.
+        *   **Enhanced Filtering:**
+            *   UI (Renderer): Add filters (`shadcn/ui` Selects/Checkboxes) for Category, Uncategorized status, and Unexpected Expense status.
+            *   Logic (Renderer/Main): Extend filtering capabilities based on new options.
+        *   **Basic Charting:**
+            *   Integration: Add **Recharts** library to the project.
+            *   Category Breakdown Chart (Renderer): Component displaying a Pie/Donut chart (`Recharts`) showing spending proportions per category based on the currently filtered transactions.
+        *   **UI/UX Polish:** Improve error handling messages, loading states, and general component interactions based on MVP usage.
+
+*   **Phase 3: AI Integration & Advanced Insights**
+    *   **Goal:** Leverage external AI (Google Gemini) for intelligent categorization assistance and deeper spending analysis. Complete the core feature set.
+    *   **Scope:**
+        *   **API Key Management:**
+            *   Secure Storage (Main): Integrate **`keytar`** library to securely store/retrieve the user's Google Gemini API key via the OS keychain/credential manager.
+            *   UI (Renderer): Settings section using `shadcn/ui` Input (password type) and Button to save the API key via IPC -> Main process -> `keytar`.
+        *   **AI-Assisted Categorization:**
+            *   API Client (Main): Implement `fetch` call logic to send transaction descriptions to the Gemini API for category suggestion. Handle API responses and errors.
+            *   Workflow Integration (Main/Renderer): During import, if a transaction has no rule match, trigger IPC call to Main process for suggestion. Main calls Gemini API.
+            *   Confirmation UI (Renderer): Display the AI-suggested category alongside the transaction (e.g., in the transaction list/import review step) using `shadcn/ui` components, requiring user confirmation or override before saving. Allow rule creation based on confirmed AI suggestions.
+        *   **AI-Powered Analysis:**
+            *   Data Aggregation (Main): Logic to aggregate spending data (totals per category over the filtered period) based on the current filters, ensuring data is summarized/anonymized.
+            *   API Client (Main): Implement `fetch` call logic to send aggregated data to Gemini API with prompts focused on savings/anomalies. Handle responses/errors.
+            *   UI (Renderer): Add an "Analyze Spending with AI" button (`shadcn/ui`). On click, trigger analysis via IPC. Display the textual insights returned by Gemini in a designated area (`shadcn/ui` Alert, Card, or Textarea).
+        *   **Spending Trend Chart:**
+            *   UI (Renderer): Component displaying a Line/Bar chart (`Recharts`) showing spending trends over time (e.g., total spending per month, or spending within a selected category per month) based on filtered data.
+        *   **Connectivity Awareness:**
+            *   UI (Renderer): Implement visual cues or disable relevant buttons/features when an internet connection (required for Gemini) is unavailable or the API key is missing/invalid.
+
+*   **Future Enhancements (Post-Initial Release Backlog):**
+    *   Budgeting features (setting spending goals per category).
+    *   Advanced reporting and custom chart creation.
+    *   Improved duplicate detection logic (e.g., fuzzy matching, configurable time windows).
+    *   Multi-currency support (handling and display).
+    *   Optional encrypted cloud backup/sync of the SQLite database.
+    *   Regular expression support for categorization rules.
+    *   Direct bank connection options (significant architectural change).
+
+---
+
+Okay, acknowledging that the `electron-vite` project and `shadcn/ui` initialization are already done, let's refine the "Logical Dependency Chain" section. This chain focuses on the sequence of building features *after* the initial project setup, emphasizing getting a functional core loop working quickly.
+
+---
+
+# Logical Dependency Chain
+
+*(Assumes `electron-vite` project structure is in place and `shadcn/ui` is initialized. Initial boilerplate UI/logic from `electron-vite` examples should be removed or replaced as these steps are implemented.)*
+
+1.  **Data Persistence Foundation:**
+    *   **Configure Prisma:** Set up Prisma schema (`schema.prisma`) with initial `Transaction` and `Category` models. Configure SQLite provider.
+    *   **Run Initial Migration:** Execute `prisma migrate dev` to create the SQLite database file and tables.
+    *   **Prisma Client:** Ensure Prisma Client is generated and accessible within the Electron **Main** process.
+    *   **Basic IPC Setup:** Define basic IPC channels (`ipcMain.handle`, `contextBridge.exposeInMainWorld`) for future communication (e.g., requesting/sending data between Renderer and Main).
+
+2.  **Core Data Input & Display Loop (Visible MVP):**
+    *   **Basic App Layout (Renderer):** Structure the main application window using React components and `shadcn/ui` layout primitives (e.g., simple sidebar for navigation, main content area). Replace any `electron-vite` example components.
+    *   **CSV Import UI (Renderer):** Create a component with a `shadcn/ui` Button to trigger file selection. Use `<input type="file">`.
+    *   **CSV Parsing (Renderer/Main):** Implement parsing using **Papaparse** upon file selection (can initially happen in Renderer, or send file path/content to Main via IPC for parsing).
+    *   **MVP Column Mapping UI (Renderer):** Create a simple modal/dialog (`shadcn/ui` Dialog) triggered after parsing, prompting the user to select columns (using `shadcn/ui` Select) for 'Date', 'Description', 'Amount'.
+    *   **Transaction Persistence (IPC -> Main):** Send the mapped and parsed transaction data from Renderer to Main via IPC. Implement the Main process handler to use **Prisma Client** to save these transactions to the SQLite database. Include basic duplicate checking logic.
+    *   **Transaction View UI (Renderer):** Create a dedicated view/component.
+    *   **Transaction Data Fetching (Renderer -> IPC -> Main):** Implement Renderer logic to request transactions from the Main process via IPC. Implement the Main process handler to fetch transactions using Prisma Client and send them back.
+    *   **Transaction Table (Renderer):** Display the fetched transactions using a `shadcn/ui` Table component.
+
+3.  **Manual Categorization Layer:**
+    *   **Category Management UI (Renderer):** Create a settings or dedicated view using `shadcn/ui` components (Table, Dialog, Form, Input, Button) for CRUD operations on Categories.
+    *   **Category Persistence (IPC -> Main):** Implement IPC handlers in Main to perform Category CRUD operations using Prisma Client.
+    *   **Assign Category UI (Renderer):** Add a `shadcn/ui` Select component (or similar) to each row in the Transaction Table, populated with existing Categories.
+    *   **Assign Category Persistence (IPC -> Main):** On selection change, send the Transaction ID and selected Category ID via IPC to the Main process. Implement the handler in Main to update the transaction record using Prisma Client.
+
+4.  **State Management & Basic Filtering:**
+    *   **Integrate Zustand (Renderer):** Set up Zustand stores to manage application state like the list of transactions, categories, filters, loading states. Refactor data fetching/display logic to use the store.
+    *   **Date Filter UI (Renderer):** Add a `shadcn/ui` DatePicker component to filter transactions. Update Zustand store with the selected range.
+    *   **Filtering Logic (Renderer/Main):** Adapt the transaction fetching logic (ideally in the Main process query or client-side filtering via Zustand selectors) to respect the date range from the store.
+
+5.  **Automation Layer:**
+    *   **Database Schema Update:** Add `CategorizationRule` and `CsvMapping` models via Prisma migration.
+    *   **Rule Engine Logic (Main):** Implement logic in the Main process (triggered during/after import) to check transaction descriptions against stored rules (fetched via Prisma). Assign category ID automatically if a match is found before saving/updating the transaction.
+    *   **Implicit Rule Creation (UI + IPC -> Main):** After successful manual categorization, show a `shadcn/ui` Alert/Toast prompting to create a rule. If confirmed, send vendor/description pattern and category ID via IPC to Main to save a new `CategorizationRule` using Prisma.
+    *   **CSV Mapping Persistence (UI + IPC -> Main):** Extend the import UI to save/load named mapping configurations. Store/retrieve these using Prisma via IPC calls.
+
+6.  **Foundational Analysis & Visualization:**
+    *   **Integrate Recharts (Renderer):** Add the library dependency.
+    *   **Category Breakdown Chart (Renderer):** Create a React component using Recharts (e.g., `<PieChart>`) that consumes categorized transaction data (filtered based on Zustand state) to display spending proportions.
+    *   **"Unexpected Expense" Flag (Data + UI + IPC -> Main):** Add boolean field via Prisma migration. Add `shadcn/ui` Checkbox/Switch to Transaction Table row. Implement persistence logic via IPC.
+    *   **Enhanced Filtering (UI + State):** Add `shadcn/ui` Selects/Checkboxes for Category, Uncategorized, Unexpected filters. Update Zustand store and filtering logic accordingly.
+
+7.  **AI Integration Layer:**
+    *   **API Key Secure Storage (UI + IPC -> Main + keytar):** Implement Settings UI for API key input. Use `keytar` in the Main process (via IPC call) to store/retrieve the key securely.
+    *   **AI Suggestion Logic (Main):** Implement `fetch` calls to Gemini API for category suggestions within the Main process.
+    *   **AI Suggestion Workflow (Renderer -> IPC -> Main -> IPC -> Renderer):** Trigger suggestion request from Renderer for uncategorized items. Main process calls API, returns suggestion via IPC. Renderer displays suggestion (e.g., using a `shadcn/ui` Badge or Tooltip) requiring user confirmation before updating the transaction's category.
+    *   **AI Analysis Logic (Main):** Implement data aggregation logic (respecting filters) and `fetch` calls to Gemini for analysis.
+    *   **AI Analysis UI (Renderer -> IPC -> Main -> IPC -> Renderer):** Add "Analyze" button. Trigger request via IPC. Main aggregates data, calls API, returns text insights via IPC. Renderer displays insights (e.g., in a `shadcn/ui` Card or Alert).
+
+8.  **Advanced Visualization & Polish:**
+    *   **Spending Trend Chart (Renderer):** Create Recharts Line/Bar chart component for trends over time, using filtered data from Zustand.
+    *   **Connectivity Awareness (Renderer/Main):** Implement checks for internet connection and API key status; disable relevant UI elements (`shadcn/ui` component props) accordingly.
+    *   **Refined Error Handling/Loading States:** Add comprehensive loading indicators (`shadcn/ui` Skeleton/Spinner) and user-friendly error messages (`shadcn/ui` Alert/Toast) throughout the application.
+
+---
+
+# Risks and Mitigations
+
+*   **Technical Challenge: CSV Format Variability:** Bank CSVs differ wildly (date formats, amount columns, delimiters, encoding).
+    *   *Mitigation:* Implement a flexible column mapping tool (FR1.2). Use a robust CSV parser like Papaparse. Start with common formats and add flexibility iteratively. Provide clear error messages if parsing fails.
+*   **Technical Challenge: Gemini API Integration:** Prompt engineering for good results, API costs, rate limits, error handling, ensuring user privacy (sending minimal data).
+    *   *Mitigation:* Start with simple prompts. Test categorization suggestions extensively. For analysis, send only aggregated, anonymized data. Implement clear error handling for API issues (network, invalid key). Make API usage explicit and optional. Document potential costs to the user (as they provide the key).
+*   **Technical Challenge: Secure API Key Storage:** Incorrectly storing the API key is a security risk.
+    *   *Mitigation:* Use Electron's integrations with OS-level secure credential stores (`keytar` or similar). Do not store the key in plain text files or localStorage.
+*   **Risk: Defining MVP Scope:** Defining an MVP that is truly minimal yet provides tangible value can be difficult, leading to scope creep.
+    *   *Mitigation:* Strictly adhere to the Phase 1 scope defined above. Focus on the core loop: Import -> Store -> View -> Manually Categorize. Get user feedback early on this core loop before adding significant automation or AI.
+*   **Risk: User Experience Complexity:** Juggling manual rules, AI suggestions, and manual overrides could become confusing.
+    *   *Mitigation:* Design clear UI indicators for category sources (Manual, Rule, AI Suggestion). Make the confirmation step for AI suggestions explicit and easy to override. Prioritize user control.
+*   **Resource Constraints:** Development time/effort for a solo developer or small team.
+    *   *Mitigation:* Leverage existing libraries effectively (Electron, React, shadcn/ui, ORM, Papaparse, Charting). Follow the phased roadmap strictly. Focus on delivering core value incrementally.
+
+# Appendix
+
+*   **Open Questions (from initial discussion):**
+    *   Specific error handling strategy for different CSV parsing issues (e.g., missing columns, invalid data types)? (To be defined during implementation - likely skip row + log error initially).
+    *   Exact format/structure of data sent to Gemini for analysis? (To be refined - start with `{category: 'Groceries', total: 450.50, period: '2023-10'}` etc.).
+    *   Preferred charting library? (Recharts or Chart.js - decision pending detailed component needs).
+    *   Detailed requirements for handling different currency formats and decimal separators? (Assume numeric parsing initially, strip common symbols. Full i18n support is future enhancement).
+*   **Success Metrics (Conceptual):**
+    *   User successfully imports and maps CSV data.
+    *   High % of transactions categorized over time.
+    *   Active use of filtering and reporting.
+    *   Adoption rate of optional AI features.
+    *   Low reported error rates during import/processing.
+    *   Positive qualitative feedback on usability, local control, and insights gained.
+
+---

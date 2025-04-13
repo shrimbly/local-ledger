@@ -1,0 +1,202 @@
+Okay, let's reformat the PRD content we've discussed into the structure you provided.
+
+---
+
+**Product Requirements Document: Local Ledger (Working Title)**
+
+**Version:** 1.1 (Formatted)
+**Date:** 2023-10-27
+**Author:** [Your Name/AI Assistant]
+
+# Overview
+
+Local Ledger is a desktop application designed individuals who want to track and analyze their personal finances using exported CSV bank statements. The application provides value by consolidating transaction data locally, offering flexible categorization (manual, rule-based, AI-assisted), and leveraging AI for deeper spending insights, all while keeping the core financial data on the user's device.
+
+# Core Features
+
+*   **CSV Data Import & Mapping:**
+    *   *What it does:* Allows users to select and import bank transaction data from one or multiple CSV files. Includes a mapping tool for users to specify which columns correspond to Date, Description, and Amount.
+    *   *Why it's important:* Enables users to get their financial data into the application from various bank formats. Foundational for all other features.
+    *   *How it works:* User selects file(s). If the format is new, a UI prompts the user to map CSV columns to required fields (Date, Description, Amount). This mapping can be saved. The app parses the data based on the mapping, handling common formats and detecting duplicates.
+*   **Local Data Storage:**
+    *   *What it does:* Stores all imported transactions, user-defined categories, and categorization rules on the user's local machine.
+    *   *Why it's important:* Addresses the core user need for data privacy and control, avoiding reliance on third-party cloud storage for sensitive financial data.
+    *   *How it works:* Utilizes a local database file (e.g., SQLite) stored within the application's data directory on the user's computer. No transaction data is transmitted elsewhere unless explicitly used by an AI feature (see below).
+*   **Transaction Categorization (Manual, Rule-Based, AI-Assisted):**
+    *   *What it does:* Allows users to assign spending categories to transactions. Supports manual assignment, automatic assignment based on user-defined rules (matching vendor/description), and optional AI suggestions (using Google Gemini) for transactions from new vendors.
+    *   *Why it's important:* Turns raw transaction data into meaningful information about spending habits. Automation reduces manual effort.
+    *   *How it works:* Users can select transactions and choose a category. The system checks imported transactions against saved rules (Vendor Pattern -> Category). If no rule matches, it *optionally* sends the description to Gemini for a suggestion, which the user must confirm/override. Confirmed categorizations can generate new rules. Users can manage (CRUD) their own list of categories.
+*   **"Unexpected Expense" Flagging:**
+    *   *What it does:* Allows users to mark individual transactions as "Unexpected".
+    *   *Why it's important:* Helps users isolate and track non-routine expenses separately from regular spending.
+    *   *How it works:* A simple boolean flag associated with each transaction, toggled via the UI.
+*   **Data Viewing, Filtering & Sorting:**
+    *   *What it does:* Displays transactions in a clear list/table format. Provides tools to filter data by date range, category, unexpected status, or uncategorized status. Allows sorting by key columns.
+    *   *Why it's important:* Enables users to easily navigate, explore, and focus on specific subsets of their financial data.
+    *   *How it works:* A dedicated UI view displays transactions. Filter controls (date pickers, dropdowns, checkboxes) modify the displayed dataset. Table headers allow sorting.
+*   **Spending Analysis & Visualization:**
+    *   *What it does:* Provides visual summaries of spending data, including category breakdowns (pie/donut charts) and spending trends over time (line/bar charts) based on filtered data. Offers optional AI-powered analysis (using Google Gemini) to identify potential savings and anomalies.
+    *   *Why it's important:* Helps users quickly understand spending patterns, track category trends, and discover actionable insights without manual calculation.
+    *   *How it works:* A reporting/dashboard section renders charts using a charting library based on the current transaction filter. An "Analyze with AI" button sends aggregated, anonymized summary data (e.g., category totals per period) for the filtered view to Gemini, displaying the textual insights received.
+*   **Configuration Management:**
+    *   *What it does:* Allows users to manage application settings, including their Google Gemini API key (stored securely), spending categories, and saved CSV mappings.
+    *   *Why it's important:* Provides necessary user control over application behavior, external service integration, and data structure definitions.
+    *   *How it works:* A dedicated settings area provides interfaces for API key input (using OS secure storage), category CRUD operations, and viewing/managing saved CSV mappings.
+
+# User Experience
+
+*   **Key User Flows:**
+    *   *Initial Setup:* Install App -> Configure Gemini API Key (Optional) -> Import First CSV -> Map Columns -> Save Mapping.
+    *   *Regular Import:* Open App -> Import New CSV(s) -> Review Auto-Categorized Transactions -> Manually Categorize/Confirm AI Suggestions for Uncategorized -> Create Rules for New Vendors.
+    *   *Spending Review:* Open App -> Select Date Range/Filters -> View Transaction List -> View Spending Charts -> Optionally run AI Analysis.
+    *   *Category Management:* Open App -> Go to Settings -> Add/Edit/Delete Categories.
+*   **UI/UX Considerations:**
+    *   **Interface:** Clean, intuitive, and modern look and feel (using `shadcn/ui`). Easy navigation between Import, Transactions, Analysis, and Settings.
+    *   **Feedback:** Provide clear visual feedback during operations like import, categorization, and AI analysis. Indicate loading states.
+    *   **Clarity:** Clearly distinguish between automatically applied categories, AI suggestions needing confirmation, and manually set categories. Clearly label charts and analysis results.
+    *   **Offline Indication:** Clearly indicate when features requiring an internet connection (Gemini Categorization/Analysis) are unavailable or require connection.
+    *   **Error Handling:** Provide user-friendly error messages (e.g., CSV parsing issues, API connection problems).
+    *   **Responsiveness:** Ensure the UI remains responsive during data processing.
+
+# Technical Architecture
+
+*   **System Components:**
+    *   **Electron Shell:** Main process (Node.js environment) handles application lifecycle, window management, background tasks, database access, secure API key storage, and communication with external APIs (Gemini). Renderer process(es) handle the user interface (HTML/CSS/JS).
+    *   **Frontend (Renderer):** Built with **React** and **TypeScript**. Uses **Vite** for fast development builds. UI components provided by **shadcn/ui** styled with **Tailwind CSS**. **Zustand** for state management. **Recharts** or **Chart.js (via `react-chartjs-2`)** for data visualization. **Papaparse** for client-side CSV parsing during import preview/mapping.
+    *   **Backend Logic (Main):** Runs in the Electron main process (Node.js). Uses **TypeScript**. Handles core business logic, interaction with the database.
+    *   **Database:** **SQLite** database stored as a single file locally.
+    *   **Database Access:** **Prisma** (recommended) or TypeORM for ORM capabilities, providing type-safe database interactions with SQLite from the main process.
+    *   **Inter-Process Communication (IPC):** Electron's IPC mechanisms used for communication between the Renderer (UI) and Main (database, API calls) processes.
+*   **Data Models (Conceptual - implemented via ORM):**
+    *   `Transaction`: ID, Date, Description, Amount, CategoryID (FK), IsUnexpected, SourceFile (optional).
+    *   `Category`: ID, Name.
+    *   `CategorizationRule`: ID, VendorPattern (string), CategoryID (FK).
+    *   `CsvMapping`: ID, Name (e.g., "Bank ABC Checking"), MappingConfig (JSON detailing column assignments - Date, Desc, Amount, etc.).
+*   **APIs and Integrations:**
+    *   **Google Gemini API:** External REST API called from the main process. Requires user-provided API key. Used for:
+        *   Category suggestion (input: transaction description; output: category name suggestion).
+        *   Spending analysis (input: aggregated, anonymized spending data; output: textual insights).
+    *   **OS Secure Storage:** Integration with platform-specific secure storage (macOS Keychain, Windows Credential Manager, Linux Keyring) via Electron APIs or libraries like `keytar` to store the Gemini API key securely.
+*   **Infrastructure Requirements:**
+    *   User's local machine (Windows, macOS, Linux - Electron compatibility).
+    *   Sufficient disk space for the application and the SQLite database file.
+    *   Active internet connection *required* for Gemini features (categorization suggestions, AI analysis). Core functionality works offline.
+
+# Development Roadmap
+
+*(Note: No timelines, focus on scope per phase)*
+
+*   **Phase 1: MVP - Core Data Handling & Viewing**
+    *   **Scope:**
+        *   Basic Electron app setup with Vite, React, TypeScript.
+        *   Frontend shell using `shadcn/ui`.
+        *   SQLite database setup using Prisma/TypeORM.
+        *   **Core Feature:** CSV Import with basic column mapping (user selects Date, Desc, Amount cols).
+        *   **Core Feature:** Local Data Storage for Transactions.
+        *   **Core Feature:** Basic Transaction List View (sortable by Date, Amount).
+        *   **Core Feature:** Manual Categorization (selecting from a list).
+        *   **Core Feature:** Basic Category Management (CRUD for categories).
+        *   Basic Date Range Filtering.
+        *   Basic Configuration: Ability to view the database file location (for transparency).
+    *   **Goal:** A minimally viable product where a user can import data, manually categorize it, and view their transactions locally. Establishes the foundation.
+
+*   **Phase 2: Automation & Basic Analysis**
+    *   **Scope:**
+        *   **Core Feature:** Rule-Based Automatic Categorization (engine + rule creation based on manual categorization).
+        *   UI for managing Categorization Rules.
+        *   **Core Feature:** Saving/Reusing CSV Column Mappings.
+        *   **Core Feature:** Basic Spending Charts (e.g., Pie chart for category breakdown based on filtered data).
+        *   **Core Feature:** "Unexpected Expense" Flagging (data model + UI toggle).
+        *   Enhanced Filtering (by Category, Unexpected Status, Uncategorized).
+        *   UI Polish & basic error handling improvements.
+    *   **Goal:** Reduce manual effort via rules, provide initial visual insights, and improve usability.
+
+*   **Phase 3: AI Integration & Enhanced Insights**
+    *   **Scope:**
+        *   **Core Feature:** Secure Gemini API Key Storage & Configuration UI.
+        *   **Core Feature:** AI-Assisted Categorization (Gemini suggestions for uncategorized items, user confirmation flow).
+        *   **Core Feature:** AI-Powered Analysis (Button to send aggregated data to Gemini for savings/anomaly insights, display results).
+        *   **Core Feature:** Spending Trend Charts (e.g., line/bar chart showing spending over time per category or total).
+        *   Robust Error Handling for API calls.
+        *   Clear indication of online/offline status for AI features.
+    *   **Goal:** Leverage AI to further streamline categorization and provide deeper financial insights beyond basic charts.
+
+*   **Future Enhancements (Post-Initial Release):**
+    *   Budgeting features (setting spending limits/goals).
+    *   More advanced reporting and custom chart creation.
+    *   Improved duplicate detection logic.
+    *   Multi-currency support.
+    *   Investment tracking (potentially out of scope for the core idea).
+    *   Direct bank connection via APIs like Plaid (changes the "local CSV" paradigm).
+    *   Optional encrypted cloud backup/sync.
+    *   Regular expression support for categorization rules.
+
+# Logical Dependency Chain
+
+1.  **Foundation:**
+    *   Set up Electron project structure with Vite, React, TS.
+    *   Integrate `shadcn/ui` and Tailwind CSS.
+    *   Set up SQLite database and ORM (Prisma/TypeORM). Define initial `Transaction` and `Category` models.
+    *   Establish basic Electron IPC for communication between Renderer and Main.
+2.  **Core Input/Output Loop (Fastest path to visibility):**
+    *   Implement CSV Import UI (file select).
+    *   Implement basic CSV parsing (Papaparse).
+    *   Implement MVP Column Mapping UI.
+    *   Implement logic to save parsed Transactions to the SQLite DB via IPC -> Main Process -> ORM.
+    *   Implement basic Transaction List View in React to display stored transactions.
+3.  **Manual Interaction Layer:**
+    *   Implement Category Management UI (CRUD) and DB logic.
+    *   Implement Manual Categorization functionality in the Transaction List View (assigning existing Category ID to Transaction).
+4.  **Automation Layer:**
+    *   Implement Rule data model and DB storage.
+    *   Build Rule Engine logic (check description against patterns during import).
+    *   Implement UI for implicit Rule creation (prompt after manual categorization).
+    *   Implement UI for explicit Rule management (optional, could be later).
+5.  **Basic Analysis Layer:**
+    *   Implement Filtering logic (Date, Category, etc.) on the Transaction View.
+    *   Integrate Charting library (Recharts/Chart.js).
+    *   Create basic Pie Chart component using filtered, categorized data.
+6.  **AI Integration Layer:**
+    *   Implement secure API key storage and settings UI.
+    *   Build Gemini API client logic (in Main process) for category suggestion.
+    *   Integrate AI suggestion flow into the import/categorization process (Renderer requests suggestion via IPC, Main calls API, Renderer displays suggestion for confirmation).
+    *   Build logic to aggregate spending data based on filters.
+    *   Build Gemini API client logic for spending analysis.
+    *   Implement UI to trigger AI analysis and display results.
+7.  **Enhancements & Polish (Can be interleaved earlier where appropriate):**
+    *   Implement "Unexpected Expense" flag.
+    *   Implement Trend charts.
+    *   Refine CSV Mapping saving/loading.
+    *   Improve error handling and UI feedback throughout.
+
+# Risks and Mitigations
+
+*   **Technical Challenge: CSV Format Variability:** Bank CSVs differ wildly (date formats, amount columns, delimiters, encoding).
+    *   *Mitigation:* Implement a flexible column mapping tool (FR1.2). Use a robust CSV parser like Papaparse. Start with common formats and add flexibility iteratively. Provide clear error messages if parsing fails.
+*   **Technical Challenge: Gemini API Integration:** Prompt engineering for good results, API costs, rate limits, error handling, ensuring user privacy (sending minimal data).
+    *   *Mitigation:* Start with simple prompts. Test categorization suggestions extensively. For analysis, send only aggregated, anonymized data. Implement clear error handling for API issues (network, invalid key). Make API usage explicit and optional. Document potential costs to the user (as they provide the key).
+*   **Technical Challenge: Secure API Key Storage:** Incorrectly storing the API key is a security risk.
+    *   *Mitigation:* Use Electron's integrations with OS-level secure credential stores (`keytar` or similar). Do not store the key in plain text files or localStorage.
+*   **Risk: Defining MVP Scope:** Defining an MVP that is truly minimal yet provides tangible value can be difficult, leading to scope creep.
+    *   *Mitigation:* Strictly adhere to the Phase 1 scope defined above. Focus on the core loop: Import -> Store -> View -> Manually Categorize. Get user feedback early on this core loop before adding significant automation or AI.
+*   **Risk: User Experience Complexity:** Juggling manual rules, AI suggestions, and manual overrides could become confusing.
+    *   *Mitigation:* Design clear UI indicators for category sources (Manual, Rule, AI Suggestion). Make the confirmation step for AI suggestions explicit and easy to override. Prioritize user control.
+*   **Resource Constraints:** Development time/effort for a solo developer or small team.
+    *   *Mitigation:* Leverage existing libraries effectively (Electron, React, shadcn/ui, ORM, Papaparse, Charting). Follow the phased roadmap strictly. Focus on delivering core value incrementally.
+
+# Appendix
+
+*   **Open Questions (from initial discussion):**
+    *   Specific error handling strategy for different CSV parsing issues (e.g., missing columns, invalid data types)? (To be defined during implementation - likely skip row + log error initially).
+    *   Exact format/structure of data sent to Gemini for analysis? (To be refined - start with `{category: 'Groceries', total: 450.50, period: '2023-10'}` etc.).
+    *   Preferred charting library? (Recharts or Chart.js - decision pending detailed component needs).
+    *   Detailed requirements for handling different currency formats and decimal separators? (Assume numeric parsing initially, strip common symbols. Full i18n support is future enhancement).
+*   **Success Metrics (Conceptual):**
+    *   User successfully imports and maps CSV data.
+    *   High % of transactions categorized over time.
+    *   Active use of filtering and reporting.
+    *   Adoption rate of optional AI features.
+    *   Low reported error rates during import/processing.
+    *   Positive qualitative feedback on usability, local control, and insights gained.
+
+---
