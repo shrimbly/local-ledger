@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactElement } from 'react'
+import { useEffect, ReactNode } from 'react'
 import { Button } from '../ui/button'
 import { Plus, Pencil, Trash2, Tag, Check } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
@@ -10,9 +10,13 @@ import {
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog'
 import TransactionTable from './TransactionTable'
 import { TransactionForm } from './TransactionForm'
-import { Transaction, Category } from '../../lib/types'
-import { getAllTransactions, deleteTransaction, updateTransaction } from '../../services/transactionService'
-import { getAllCategories } from '../../services/categoryService'
+import { Transaction } from '../../lib/types'
+import { 
+  useTransactionStore, 
+  useCategoryStore, 
+  useFilterStore, 
+  useUiStore 
+} from '../../stores'
 import {
   Select,
   SelectContent,
@@ -23,166 +27,138 @@ import {
 import { Label } from '../ui/label'
 
 export function TransactionsView() {
-  const [transactions, setTransactions] = useState<Transaction[]>([])
-  const [categories, setCategories] = useState<Category[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
-  const [totalPages, setTotalPages] = useState(1)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null)
-  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([])
-  const [isBatchAssigning, setIsBatchAssigning] = useState(false)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
-  const [isBatchUpdating, setIsBatchUpdating] = useState(false)
+  // Transaction store state & actions
+  const {
+    transactions,
+    isLoading,
+    error,
+    currentPage,
+    pageSize,
+    totalPages,
+    selectedTransactions,
+    fetchTransactions,
+    removeTransaction,
+    selectTransactions,
+    setCurrentPage,
+    setPageSize,
+    getFilteredPageTransactions,
+    updateTotalPagesFromFiltered
+  } = useTransactionStore()
 
-  // Fetch transactions on component mount
+  // Category store state & actions
+  const { 
+    categories, 
+    fetchCategories,
+    selectedCategoryId,
+    selectCategory,
+    getCategoriesForSelection
+  } = useCategoryStore()
+
+  // UI store state & actions
+  const {
+    dialog,
+    editingTransaction,
+    isBatchAssigning,
+    openDialog,
+    closeDialog,
+    setEditingTransaction,
+    setBatchAssigning
+  } = useUiStore()
+
+  // Initialize data on component mount
   useEffect(() => {
     fetchTransactions()
-  }, [])
-
-  // Fetch categories on component mount
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const data = await getAllCategories()
-        setCategories(data)
-      } catch (err) {
-        console.error('Error fetching categories:', err)
-      }
-    }
-    
     fetchCategories()
-  }, [])
-
-  // Calculate total pages when transactions change
+  }, [fetchTransactions, fetchCategories])
+  
+  // Update total pages when transactions or filter changes
   useEffect(() => {
-    setTotalPages(Math.max(1, Math.ceil(transactions.length / pageSize)))
-    // If current page is higher than total pages, adjust it
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(totalPages)
+    if (transactions.length > 0) {
+      updateTotalPagesFromFiltered()
     }
-  }, [transactions.length, pageSize])
-
-  const fetchTransactions = async () => {
-    setIsLoading(true)
-    setError(null)
-    
-    try {
-      const data = await getAllTransactions()
-      console.log('Fetched transactions:', data)
-      setTransactions(data)
-    } catch (err) {
-      setError('Failed to fetch transactions. Please try again.')
-      console.error('Error fetching transactions:', err)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  }, [transactions, updateTotalPagesFromFiltered])
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    if (page < 1 || page > totalPages) return
     setCurrentPage(page)
   }
 
   // Handle page size change
   const handlePageSizeChange = (size: number) => {
     setPageSize(size)
-    setCurrentPage(1) // Reset to first page
-  }
-
-  // Get transactions for current page
-  const getCurrentPageTransactions = () => {
-    const startIndex = (currentPage - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    return transactions.slice(startIndex, endIndex)
   }
 
   // Add new transaction
   const handleAddClick = () => {
     setEditingTransaction(null)
-    setDialogOpen(true)
+    openDialog('add')
   }
 
   // Edit transaction
   const handleEditClick = (transaction: Transaction) => {
     setEditingTransaction(transaction)
-    setDialogOpen(true)
+    openDialog('edit')
   }
 
   // Delete transaction
   const handleDeleteClick = (transaction: Transaction) => {
-    setTransactionToDelete(transaction)
+    openDialog('delete', transaction)
   }
 
   const handleDelete = async () => {
-    if (!transactionToDelete) return
-
-    try {
-      await deleteTransaction(transactionToDelete.id)
-      fetchTransactions() // Refresh the list
-      setTransactionToDelete(null)
-    } catch (err) {
-      console.error('Error deleting transaction:', err)
-      setError('Failed to delete transaction. Please try again.')
-    }
+    if (!dialog.data) return
+    
+    // Extract transaction ID from dialog data
+    const transactionId = (dialog.data as Transaction).id
+    await removeTransaction(transactionId)
+    closeDialog()
   }
 
   // Save transaction (create or update)
   const handleTransactionChange = () => {
-    fetchTransactions()
-    setDialogOpen(false)
+    closeDialog()
   }
 
   // Handle selection change
   const handleSelectionChange = (selectedIds: string[]) => {
-    setSelectedTransactions(selectedIds)
+    selectTransactions(selectedIds)
   }
 
   // Open batch category assignment modal
   const handleBatchAssign = () => {
-    setIsBatchAssigning(true)
-    setSelectedCategoryId('')
+    setBatchAssigning(true)
+    selectCategory(null)
+    openDialog('batch-category')
   }
 
   // Apply the selected category to all selected transactions
   const handleApplyCategory = async () => {
-    if (!selectedCategoryId) return
+    if (!selectedCategoryId && selectedCategoryId !== 'no-category') return
 
-    setIsBatchUpdating(true)
-    setError(null)
-
+    // Get the transaction store's update function
+    const { updateTransaction } = useTransactionStore.getState()
+    
     try {
       // Update each selected transaction
       const updatePromises = selectedTransactions.map(id => {
-        const transaction = transactions.find(t => t.id === id)
-        if (!transaction) return Promise.resolve()
-
         return updateTransaction(id, {
-          categoryId: selectedCategoryId === 'none' ? null : selectedCategoryId
+          categoryId: selectedCategoryId === 'no-category' ? null : selectedCategoryId
         })
       })
 
       await Promise.all(updatePromises)
-      fetchTransactions() // Refresh the list
       
       // Close dialog and reset selections
-      setIsBatchAssigning(false)
-      setSelectedTransactions([])
+      closeDialog()
+      selectTransactions([])
     } catch (err) {
       console.error('Error updating transactions:', err)
-      setError('Failed to update categories. Please try again.')
-    } finally {
-      setIsBatchUpdating(false)
     }
   }
 
   // Render pagination
   const renderPagination = () => {
-    const pageButtons: ReactElement[] = []
+    const pageButtons: ReactNode[] = []
     
     // Previous button
     pageButtons.push(
@@ -266,7 +242,7 @@ export function TransactionsView() {
           <Button 
             size="sm" 
             variant="outline"
-            onClick={() => setSelectedTransactions([])}
+            onClick={() => selectTransactions([])}
           >
             Clear Selection
           </Button>
@@ -279,6 +255,115 @@ export function TransactionsView() {
           </Button>
         </div>
       </div>
+    )
+  }
+
+  const displayedTransactions = getFilteredPageTransactions()
+  const categoryOptions = getCategoriesForSelection()
+
+  const renderDialogs = () => {
+    return (
+      <>
+        {/* Transaction Add/Edit Dialog */}
+        <Dialog 
+          open={dialog.isOpen && ['add', 'edit'].includes(dialog.type || '')} 
+          onOpenChange={(open) => !open && closeDialog()}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {dialog.type === 'edit' ? 'Edit Transaction' : 'Add Transaction'}
+              </DialogTitle>
+            </DialogHeader>
+            <TransactionForm 
+              transaction={editingTransaction}
+              onSave={handleTransactionChange}
+              onCancel={closeDialog}
+            />
+          </DialogContent>
+        </Dialog>
+
+        {/* Batch Category Assignment Dialog */}
+        <Dialog 
+          open={dialog.isOpen && dialog.type === 'batch-category'} 
+          onOpenChange={(open) => !open && closeDialog()}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Batch Assign Category</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="category">Select Category</Label>
+                <Select 
+                  value={selectedCategoryId || 'no-category'} 
+                  onValueChange={selectCategory}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="no-category">
+                      <span className="text-gray-500">-- No Category --</span>
+                    </SelectItem>
+                    {categoryOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        <div className="flex items-center">
+                          {option.color && (
+                            <span 
+                              className="w-3 h-3 rounded-full mr-2" 
+                              style={{ backgroundColor: option.color }}
+                            />
+                          )}
+                          {option.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="text-sm text-gray-500">
+                This will assign the selected category to {selectedTransactions.length} transaction{selectedTransactions.length !== 1 ? 's' : ''}.
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={closeDialog}
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleApplyCategory}
+                disabled={!selectedCategoryId && selectedCategoryId !== 'no-category' || isLoading}
+              >
+                {isLoading ? 'Updating...' : 'Apply Category'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog 
+          open={dialog.isOpen && dialog.type === 'delete'} 
+          onOpenChange={(open) => !open && closeDialog()}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this transaction?
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     )
   }
 
@@ -306,7 +391,7 @@ export function TransactionsView() {
       {renderBatchActionToolbar()}
 
       <TransactionTable 
-        transactions={getCurrentPageTransactions()} 
+        transactions={displayedTransactions} 
         isLoading={isLoading}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
@@ -316,97 +401,7 @@ export function TransactionsView() {
       />
 
       {renderPagination()}
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
-            </DialogTitle>
-          </DialogHeader>
-          <TransactionForm 
-            transaction={editingTransaction}
-            onSave={handleTransactionChange}
-            onCancel={() => setDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isBatchAssigning} onOpenChange={setIsBatchAssigning}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Batch Assign Category</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="category">Select Category</Label>
-              <Select 
-                value={selectedCategoryId} 
-                onValueChange={setSelectedCategoryId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-gray-500">-- No Category --</span>
-                  </SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      <div className="flex items-center">
-                        {category.color && (
-                          <span 
-                            className="w-3 h-3 rounded-full mr-2" 
-                            style={{ backgroundColor: category.color }}
-                          />
-                        )}
-                        {category.name}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="text-sm text-gray-500">
-              This will assign the selected category to {selectedTransactions.length} transaction{selectedTransactions.length !== 1 ? 's' : ''}.
-            </div>
-          </div>
-          <div className="flex justify-end space-x-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsBatchAssigning(false)}
-              disabled={isBatchUpdating}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleApplyCategory}
-              disabled={!selectedCategoryId || isBatchUpdating}
-            >
-              {isBatchUpdating ? 'Updating...' : 'Apply Category'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog 
-        open={!!transactionToDelete} 
-        onOpenChange={(open) => !open && setTransactionToDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this transaction?
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {renderDialogs()}
     </div>
   )
 }

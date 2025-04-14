@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import {
   Table,
   TableBody,
@@ -12,6 +11,8 @@ import { Button } from '../ui/button'
 import { Edit, Trash2 } from 'lucide-react'
 import { Checkbox } from '../ui/checkbox'
 import { Transaction } from '../../lib/types'
+import { useFilterStore, useCategoryStore } from '../../stores'
+import { TransactionFilters } from '../../stores/filterStore'
 
 interface TransactionTableProps {
   transactions: Transaction[]
@@ -32,44 +33,30 @@ function TransactionTable({
   onSelectionChange,
   enableSelection = false
 }: TransactionTableProps) {
-  // State for sorting
-  const [sortColumn, setSortColumn] = useState<keyof Transaction>('date')
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-
+  // Get filter store state and actions
+  const { 
+    filters,
+    setSortBy,
+    setSortDirection
+  } = useFilterStore()
+  
+  // Get category store selectors
+  const { getCategoryColor } = useCategoryStore()
+  
   // Handle column header click for sorting
-  const handleSort = (column: keyof Transaction) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+  const handleSort = (column: TransactionFilters['sortBy']) => {
+    if (filters.sortBy === column) {
+      setSortDirection(filters.sortDirection === 'asc' ? 'desc' : 'asc')
     } else {
-      setSortColumn(column)
+      setSortBy(column)
       setSortDirection('asc')
     }
   }
 
-  // Sort transactions based on current sort state
-  const sortedTransactions = [...transactions].sort((a, b) => {
-    const aValue = a[sortColumn]
-    const bValue = b[sortColumn]
-
-    if (aValue === bValue) return 0
-    
-    // Handle different data types
-    let comparison = 0
-    if (sortColumn === 'date') {
-      comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
-    } else if (sortColumn === 'amount') {
-      comparison = a.amount - b.amount
-    } else if (typeof aValue === 'string' && typeof bValue === 'string') {
-      comparison = aValue.localeCompare(bValue)
-    }
-    
-    return sortDirection === 'asc' ? comparison : -comparison
-  })
-
   // Generate sort indicator
-  const getSortIndicator = (column: keyof Transaction) => {
-    if (sortColumn !== column) return null
-    return sortDirection === 'asc' ? ' ↑' : ' ↓'
+  const getSortIndicator = (column: string) => {
+    if (filters.sortBy !== column) return null
+    return filters.sortDirection === 'asc' ? ' ↑' : ' ↓'
   }
 
   // Handle row selection
@@ -183,13 +170,13 @@ function TransactionTable({
             >
               Description{getSortIndicator('description')}
             </TableHead>
+            <TableHead>Details</TableHead>
             <TableHead 
               className="cursor-pointer hover:bg-gray-50"
-              onClick={() => handleSort('details')}
+              onClick={() => handleSort('category')}
             >
-              Details{getSortIndicator('details')}
+              Category{getSortIndicator('category')}
             </TableHead>
-            <TableHead>Category</TableHead>
             <TableHead 
               className="cursor-pointer hover:bg-gray-50 text-right"
               onClick={() => handleSort('amount')}
@@ -200,8 +187,11 @@ function TransactionTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedTransactions.map((transaction) => (
-            <TableRow key={transaction.id} className="hover:bg-gray-50">
+          {transactions.map((transaction) => (
+            <TableRow 
+              key={transaction.id} 
+              className={`hover:bg-gray-50 ${transaction.isUnexpected ? 'bg-red-50' : ''}`}
+            >
               {enableSelection && (
                 <TableCell>
                   <Checkbox 
@@ -217,22 +207,23 @@ function TransactionTable({
               <TableCell>{transaction.description}</TableCell>
               <TableCell>{transaction.details || '-'}</TableCell>
               <TableCell>
-                {transaction.category ? (
+                {transaction.categoryId ? (
                   <div className="flex items-center">
-                    {transaction.category.color && (
-                      <span 
-                        className="w-3 h-3 rounded-full mr-2" 
-                        style={{ backgroundColor: transaction.category.color }}
-                      />
-                    )}
-                    {transaction.category.name}
+                    <span 
+                      className="w-3 h-3 rounded-full mr-2" 
+                      style={{ backgroundColor: getCategoryColor(transaction.categoryId) }}
+                    />
+                    {transaction.category?.name || 'Unknown'}
                   </div>
                 ) : (
-                  '-'
+                  <span className="text-gray-400">Uncategorized</span>
                 )}
               </TableCell>
               <TableCell className={`text-right ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {transaction.amount.toFixed(2)}
+                ${Math.abs(transaction.amount).toFixed(2)}
+                <span className="text-xs ml-1">
+                  {transaction.amount < 0 ? 'expense' : 'income'}
+                </span>
               </TableCell>
               {(onEdit || onDelete) && (
                 <TableCell>
@@ -249,7 +240,7 @@ function TransactionTable({
                     {onDelete && (
                       <Button 
                         variant="outline" 
-                        size="sm"
+                        size="sm" 
                         onClick={() => onDelete(transaction)}
                       >
                         <Trash2 className="h-4 w-4" />

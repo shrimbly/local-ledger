@@ -77,28 +77,35 @@ export function mapCSVToTransactions(
     const amountValue = row[mappings.amountColumn]
 
     // Parse date - accept different formats
-    let date: Date
+    let date: Date = new Date() // Initialize with current date as fallback
     try {
       // Try to parse as ISO date first
-      date = new Date(dateValue)
+      const isoDate = new Date(dateValue)
       
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        // Try different formats (MM/DD/YYYY, DD/MM/YYYY)
+      // If ISO parsing works, use it
+      if (!isNaN(isoDate.getTime())) {
+        date = isoDate
+      } else {
+        // Try different formats (DD/MM/YYYY, MM/DD/YYYY)
         const dateParts = dateValue.split(/[\/.-]/)
         if (dateParts.length === 3) {
-          // Try MM/DD/YYYY
-          date = new Date(`${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`)
+          // Try DD/MM/YYYY first (UK format)
+          const ukDate = new Date(`${dateParts[1]}/${dateParts[0]}/${dateParts[2]}`)
           
-          // If still invalid, try DD/MM/YYYY
-          if (isNaN(date.getTime())) {
-            date = new Date(`${dateParts[1]}/${dateParts[0]}/${dateParts[2]}`)
+          // If valid, use UK format
+          if (!isNaN(ukDate.getTime())) {
+            date = ukDate
+          } else {
+            // Try MM/DD/YYYY (US format)
+            const usDate = new Date(`${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`)
+            if (!isNaN(usDate.getTime())) {
+              date = usDate
+            }
           }
         }
       }
     } catch (e) {
-      // Default to current date if parsing fails
-      date = new Date()
+      // Default to current date if any parsing fails (already initialized)
     }
 
     // Parse amount - handle different formats

@@ -51,12 +51,19 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      // Enable DevTools in development
+      devTools: true
     }
   })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    // Always open DevTools in development mode and if requested by command line
+    if (is.dev || process.argv.includes('--open-devtools')) {
+      console.log('Open dev tool...')
+      mainWindow.webContents.openDevTools({ mode: 'right' })
+    }
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {

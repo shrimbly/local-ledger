@@ -142,8 +142,8 @@ function rowToTransaction(row: any): Transaction {
     isUnexpected: !!row.isUnexpected, // Convert to boolean
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
-    // Add category if it exists
-    category: row.categoryId ? getCategoryById(row.categoryId) : null
+    // Don't try to fetch category here - it will be handled separately if needed
+    category: null
   };
 }
 
@@ -156,11 +156,47 @@ function rowToCategory(row: any): Category {
   };
 }
 
+// Helper to fetch transaction with category data
+export async function getTransactionWithCategory(id: string): Promise<Transaction | null> {
+  try {
+    const transaction = await getTransactionById(id);
+    if (!transaction) return null;
+    
+    if (transaction.categoryId) {
+      // Only attempt to get category if categoryId exists
+      const category = await getCategoryById(transaction.categoryId);
+      if (category) {
+        transaction.category = category;
+      }
+    }
+    
+    return transaction;
+  } catch (error) {
+    console.error(`Error getting transaction with category ${id}:`, error);
+    throw error;
+  }
+}
+
 // Transaction operations
 export async function getAllTransactions(): Promise<Transaction[]> {
   try {
     const rows = db.prepare('SELECT * FROM Transactions ORDER BY date DESC').all();
     const transactions = rows.map(rowToTransaction);
+    
+    // Load categories for transactions that have categoryId
+    for (const transaction of transactions) {
+      if (transaction.categoryId) {
+        try {
+          const category = db.prepare('SELECT * FROM Categories WHERE id = ?').get(transaction.categoryId);
+          if (category) {
+            transaction.category = rowToCategory(category);
+          }
+        } catch (err) {
+          console.error(`Error loading category for transaction ${transaction.id}:`, err);
+        }
+      }
+    }
+    
     return transactions;
   } catch (error) {
     console.error('Error getting all transactions:', error);
@@ -172,7 +208,22 @@ export async function getTransactionById(id: string): Promise<Transaction | null
   try {
     const row = db.prepare('SELECT * FROM Transactions WHERE id = ?').get(id);
     if (!row) return null;
-    return rowToTransaction(row);
+    
+    const transaction = rowToTransaction(row);
+    
+    // Fetch category data if there's a categoryId
+    if (transaction.categoryId) {
+      try {
+        const category = db.prepare('SELECT * FROM Categories WHERE id = ?').get(transaction.categoryId);
+        if (category) {
+          transaction.category = rowToCategory(category);
+        }
+      } catch (err) {
+        console.error(`Error loading category for transaction ${id}:`, err);
+      }
+    }
+    
+    return transaction;
   } catch (error) {
     console.error(`Error getting transaction ${id}:`, error);
     throw error;
@@ -183,6 +234,8 @@ export async function createTransaction(data: TransactionCreateInput): Promise<T
   try {
     const now = new Date().toISOString();
     const id = generateUUID();
+    
+    console.log('Creating transaction:', { id, ...data });
     
     const stmt = db.prepare(`
       INSERT INTO Transactions (id, date, description, details, amount, isUnexpected, sourceFile, categoryId, createdAt, updatedAt)
@@ -202,7 +255,27 @@ export async function createTransaction(data: TransactionCreateInput): Promise<T
       now
     );
     
-    return getTransactionById(id) as Promise<Transaction>;
+    // Get the transaction and convert dates to strings for IPC serialization
+    const newTransaction = await getTransactionById(id);
+    if (!newTransaction) {
+      throw new Error(`Failed to retrieve newly created transaction: ${id}`);
+    }
+    
+    // Create a serializable version of the transaction for IPC
+    const safeTransaction = {
+      ...newTransaction,
+      date: newTransaction.date instanceof Date ? newTransaction.date.toISOString() : newTransaction.date,
+      createdAt: newTransaction.createdAt instanceof Date ? newTransaction.createdAt.toISOString() : newTransaction.createdAt,
+      updatedAt: newTransaction.updatedAt instanceof Date ? newTransaction.updatedAt.toISOString() : newTransaction.updatedAt,
+      category: newTransaction.category ? {
+        ...newTransaction.category,
+        createdAt: newTransaction.category.createdAt instanceof Date ? newTransaction.category.createdAt.toISOString() : newTransaction.category.createdAt,
+        updatedAt: newTransaction.category.updatedAt instanceof Date ? newTransaction.category.updatedAt.toISOString() : newTransaction.category.updatedAt
+      } : null
+    };
+    
+    console.log('Created transaction successfully:', id);
+    return safeTransaction as unknown as Transaction;
   } catch (error) {
     console.error('Error creating transaction:', error);
     throw error;
@@ -267,7 +340,26 @@ export async function updateTransaction(id: string, data: TransactionUpdateInput
     const updateQuery = `UPDATE Transactions SET ${updates.join(', ')} WHERE id = ?`;
     db.prepare(updateQuery).run(...params);
     
-    return getTransactionById(id) as Promise<Transaction>;
+    // Get the updated transaction with its category data
+    const updatedTransaction = await getTransactionById(id);
+    if (!updatedTransaction) {
+      throw new Error(`Transaction not found after update: ${id}`);
+    }
+    
+    // Create a simple serializable object without methods or circular references
+    const safeTransaction = {
+      ...updatedTransaction,
+      date: updatedTransaction.date instanceof Date ? updatedTransaction.date.toISOString() : updatedTransaction.date,
+      createdAt: updatedTransaction.createdAt instanceof Date ? updatedTransaction.createdAt.toISOString() : updatedTransaction.createdAt,
+      updatedAt: updatedTransaction.updatedAt instanceof Date ? updatedTransaction.updatedAt.toISOString() : updatedTransaction.updatedAt,
+      category: updatedTransaction.category ? {
+        ...updatedTransaction.category,
+        createdAt: updatedTransaction.category.createdAt instanceof Date ? updatedTransaction.category.createdAt.toISOString() : updatedTransaction.category.createdAt,
+        updatedAt: updatedTransaction.category.updatedAt instanceof Date ? updatedTransaction.category.updatedAt.toISOString() : updatedTransaction.category.updatedAt
+      } : null
+    };
+    
+    return safeTransaction as unknown as Transaction;
   } catch (error) {
     console.error(`Error updating transaction ${id}:`, error);
     throw error;
