@@ -1,0 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Installing ShadCN components
+- When adding shadcn components via the cli always use the syntax ``npx shadcn@latest add [compontent]`` e.g. ``npx shadcn@latest add table``

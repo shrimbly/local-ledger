@@ -32,3 +32,15 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+## Database
+
+Local Ledger uses better-sqlite3 for database operations, providing a lightweight and efficient way to store transaction and category data. 
+
+### Key Database Features
+- Simple SQLite-based storage with high performance
+- Direct query access without complex ORM abstractions
+- Reliable Electron integration through the main process
+- Automatic database initialization and migration
+
+All database operations are handled through IPC communication between the renderer process (UI) and the main process (database access).

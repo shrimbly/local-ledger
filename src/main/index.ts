@@ -2,12 +2,50 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import path from 'path'
+import fs from 'fs'
+
+// Set NODE_ENV for development/production detection
+process.env.NODE_ENV = is.dev ? 'development' : 'production';
+
+// Get user data path for storing the database
+const userDataPath = app.getPath('userData')
+const dbPath = path.join(userDataPath, 'local-ledger.db')
+
+// Set environment variable only for compatibility, not used with better-sqlite3
+process.env.DATABASE_URL = `file:${dbPath}`
+
+// Now import the database module
+import {
+  getAllTransactions,
+  getTransactionById,
+  createTransaction,
+  updateTransaction,
+  deleteTransaction,
+  getAllCategories,
+  getCategoryById,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  initDatabase,
+  disconnectDatabase,
+  clearDatabase
+} from './database'
+
+// Import types
+import { 
+  TransactionCreateInput, 
+  TransactionUpdateInput,
+  CategoryCreateInput,
+  CategoryUpdateInput,
+  TransactionCreateInputArray
+} from './types'
 
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1280,
+    height: 800,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -35,10 +73,136 @@ function createWindow(): void {
   }
 }
 
+// Set up IPC handlers for database operations
+function setupIpcHandlers(): void {
+  // Transaction handlers
+  ipcMain.handle('get-transactions', async () => {
+    try {
+      return await getAllTransactions()
+    } catch (error) {
+      console.error('Error getting transactions:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('get-transaction', async (_, id: string) => {
+    try {
+      return await getTransactionById(id)
+    } catch (error) {
+      console.error(`Error getting transaction ${id}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('create-transaction', async (_, data: TransactionCreateInputArray) => {
+    try {
+      // Support for array of transactions (batch insert)
+      if (Array.isArray(data)) {
+        const results: any[] = []
+        for (const item of data) {
+          const result = await createTransaction(item)
+          results.push(result)
+        }
+        return results
+      }
+      // Single transaction creation
+      return await createTransaction(data)
+    } catch (error) {
+      console.error('Error creating transaction:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('update-transaction', async (_, id: string, data: TransactionUpdateInput) => {
+    try {
+      return await updateTransaction(id, data)
+    } catch (error) {
+      console.error(`Error updating transaction ${id}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('delete-transaction', async (_, id: string) => {
+    try {
+      return await deleteTransaction(id)
+    } catch (error) {
+      console.error(`Error deleting transaction ${id}:`, error)
+      throw error
+    }
+  })
+
+  // Category handlers
+  ipcMain.handle('get-categories', async () => {
+    try {
+      return await getAllCategories()
+    } catch (error) {
+      console.error('Error getting categories:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('get-category', async (_, id: string) => {
+    try {
+      return await getCategoryById(id)
+    } catch (error) {
+      console.error(`Error getting category ${id}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('create-category', async (_, data: CategoryCreateInput) => {
+    try {
+      return await createCategory(data)
+    } catch (error) {
+      console.error('Error creating category:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('update-category', async (_, id: string, data: CategoryUpdateInput) => {
+    try {
+      return await updateCategory(id, data)
+    } catch (error) {
+      console.error(`Error updating category ${id}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('delete-category', async (_, id: string) => {
+    try {
+      return await deleteCategory(id)
+    } catch (error) {
+      console.error(`Error deleting category ${id}:`, error)
+      throw error
+    }
+  })
+
+  // Database management handlers
+  ipcMain.handle('clear-database', async () => {
+    try {
+      return await clearDatabase()
+    } catch (error) {
+      console.error('Error clearing database:', error)
+      throw error
+    }
+  })
+}
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Initialize database
+  try {
+    await initDatabase()
+    console.log('Database initialized successfully')
+  } catch (error) {
+    console.error('Failed to initialize database:', error)
+  }
+
+  // Set up IPC handlers for database operations
+  setupIpcHandlers()
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -48,9 +212,6 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
 
   createWindow()
 
@@ -67,6 +228,16 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+// Disconnect database when app is quitting
+app.on('quit', async () => {
+  try {
+    await disconnectDatabase()
+    console.log('Database disconnected successfully')
+  } catch (error) {
+    console.error('Error disconnecting from database:', error)
   }
 })
 

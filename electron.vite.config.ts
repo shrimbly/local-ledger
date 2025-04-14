@@ -4,10 +4,28 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      outDir: 'out/main',
+      rollupOptions: {
+        external: [
+          'electron',
+          '@electron-toolkit/utils',
+          'sqlite3',
+          '@prisma/client',
+          '.prisma'
+        ],
+        output: {
+          format: 'cjs'
+        }
+      }
+    }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()]
+    plugins: [externalizeDepsPlugin()],
+    build: {
+      outDir: 'out/preload'
+    }
   },
   renderer: {
     resolve: {
@@ -15,6 +33,9 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    build: {
+      outDir: 'out/renderer'
+    }
   }
 })

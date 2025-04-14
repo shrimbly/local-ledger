@@ -1,34 +1,48 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { useState } from 'react'
+import CSVImport from './components/csv-import/CSVImport'
+import TransactionsView from './components/transactions/TransactionsView'
+import { CategoriesView } from './components/categories/CategoriesView'
+import { Button } from './components/ui/button'
 
 function App(): JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const [activeView, setActiveView] = useState<'transactions' | 'import' | 'categories'>('transactions')
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="container mx-auto px-4 py-8">
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Local Ledger</h1>
+          <p className="text-gray-600 mt-2">Import and manage your transactions</p>
+          
+          <div className="mt-6 flex gap-2">
+            <Button 
+              variant={activeView === 'transactions' ? 'default' : 'outline'}
+              onClick={() => setActiveView('transactions')}
+            >
+              Transactions
+            </Button>
+            <Button 
+              variant={activeView === 'categories' ? 'default' : 'outline'}
+              onClick={() => setActiveView('categories')}
+            >
+              Categories
+            </Button>
+            <Button 
+              variant={activeView === 'import' ? 'default' : 'outline'}
+              onClick={() => setActiveView('import')}
+            >
+              Import CSV
+            </Button>
+          </div>
+        </header>
+        
+        <main>
+          {activeView === 'import' && <CSVImport />}
+          {activeView === 'transactions' && <TransactionsView />}
+          {activeView === 'categories' && <CategoriesView />}
+        </main>
       </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
-      </div>
-      <Versions></Versions>
-    </>
+    </div>
   )
 }
 
