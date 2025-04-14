@@ -1,0 +1,42 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+ ---
+description: Guidelines for installing and working with ShadCN UI components in an Electron project
+globs: "**/*.{tsx,jsx,ts,js}"
+alwaysApply: true
+---
+
+# ShadCN UI in Electron Projects
+
+## Installing Components
+- **Always** use the standard syntax for adding components: `npx shadcn@latest add [component-name]`
+- After installing components, **check and fix import paths** in the new component files
+- Components should import from relative paths, not absolute paths
+
+## Import Path Fixes
+- **Change** `import { cn } from "src/lib/utils"` to `import { cn } from "../../lib/utils"`
+- **Change** other component imports like `import { X } from "src/components/ui/x"` to `import { X } from "./x"`
+- Never use absolute paths like `src/` in component imports
+
+## Component Location
+- All ShadCN UI components should be in `src/renderer/src/components/ui/`
+- The main utils file should be in `src/renderer/src/lib/utils.ts`
+- If components are added to the root level, move them to the correct location
+
+## Common Issues
+- If you see errors about missing modules, check import paths first
+- Look for duplicate utility files (especially in root `/lib/utils.ts`)
+- When new components reference other components, ensure those are installed first
+
+## Example Component Addition Workflow
+```bash
+# 1. Add the component
+npx shadcn@latest add dropdown-menu
+
+# 2. Fix any import paths in the new file
+# Change: import { cn } from "src/lib/utils"
+# To: import { cn } from "../../lib/utils"
+```
