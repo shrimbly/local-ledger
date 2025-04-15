@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Search, X, Filter, Calendar, AlertTriangle } from 'lucide-react'
+import { Search, X, Filter, Calendar, AlertTriangle, Tag } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Switch } from '../ui/switch'
 import { Separator } from '../ui/separator'
-import { useFilterStore } from '../../stores'
+import { useFilterStore, useCategoryStore } from '../../stores'
 import DateRangeFilter from './DateRangeFilter'
 import { Sheet, SheetContent, SheetTrigger } from '../ui/sheet'
 import { cn } from '../../lib/utils'
+import { CategoryFilter } from './CategoryFilter'
 
 interface TransactionFiltersProps {
   className?: string
@@ -26,6 +27,7 @@ export function TransactionFilters({ className }: TransactionFiltersProps) {
   
   const [searchInput, setSearchInput] = useState(filters.search)
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false)
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false)
   
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(e.target.value)
@@ -82,6 +84,38 @@ export function TransactionFilters({ className }: TransactionFiltersProps) {
             </SheetTrigger>
             <SheetContent side="right" className="w-80 sm:w-96">
               <DateRangeFilter onClose={() => setIsDateFilterOpen(false)} inSheet={true} />
+            </SheetContent>
+          </Sheet>
+          
+          {/* Category Filter */}
+          <Sheet open={isCategoryFilterOpen} onOpenChange={setIsCategoryFilterOpen}>
+            <SheetTrigger asChild>
+              <Button 
+                variant={filters.categories.length > 0 ? "default" : "outline"} 
+                size="sm" 
+                className="h-9"
+              >
+                <Tag className="mr-2 h-4 w-4" />
+                {filters.categories.length > 0 ? `Categories (${filters.categories.length})` : "Categories"}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80 sm:w-96">
+              <div className="h-full flex flex-col">
+                <div className="flex items-center justify-between py-4">
+                  <h2 className="text-lg font-semibold">Category Filter</h2>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setIsCategoryFilterOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <Separator />
+                <div className="flex-1 overflow-auto">
+                  <CategoryFilter />
+                </div>
+              </div>
             </SheetContent>
           </Sheet>
           

@@ -40,6 +40,9 @@ import {
   AlertDialogTitle,
 } from '../ui/alert-dialog'
 import { Plus, Edit, Trash2, Check, X, ZapIcon, RefreshCw } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
+import { InfoCircledIcon } from "@radix-ui/react-icons"
 
 export function RulesView() {
   // State
@@ -286,30 +289,28 @@ export function RulesView() {
           id="pattern"
           value={pattern}
           onChange={(e) => setPattern(e.target.value)}
-          placeholder="Enter text or regex pattern to match"
+          placeholder="Enter text to match against descriptions or details"
           required
         />
-        <div className="text-sm text-gray-500">
-          <p>Examples: {patternExamples.map((p, i) => 
-            p.type === 'simple' || !isRegex 
-              ? <span key={i} className="font-mono">{p.example}</span> 
-              : null
-          ).filter(Boolean).reduce((acc, curr, i, arr) => {
-            if (i === 0) return [curr]
-            return [...acc, ', ', curr]
-          }, [] as React.ReactNode[])}</p>
-        </div>
+        <p className="text-sm text-gray-500">
+          This pattern will match against both transaction descriptions and details (e.g., "To: 88754470-1004" or "Mortgage Payment")
+        </p>
       </div>
       
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="isRegex"
-          checked={isRegex}
-          onCheckedChange={(checked) => setIsRegex(checked === true)}
-        />
-        <Label htmlFor="isRegex" className="cursor-pointer">
-          Use Regular Expression
-        </Label>
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="isRegex"
+            checked={isRegex}
+            onCheckedChange={(checked) => setIsRegex(checked === true)}
+          />
+          <Label htmlFor="isRegex" className="cursor-pointer">
+            Use Regular Expression
+          </Label>
+        </div>
+        <p className="text-sm text-gray-500 ml-6">
+          Enable for advanced pattern matching
+        </p>
       </div>
       
       {isRegex && (
@@ -457,36 +458,48 @@ export function RulesView() {
         </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pattern
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    Pattern
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <InfoCircledIcon className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Matches against transaction descriptions and details fields</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </TableHead>
+                <TableHead>
                   Type
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </TableHead>
+                <TableHead>
                   Category
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </TableHead>
+                <TableHead>
                   Priority
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </TableHead>
+                <TableHead>
                   Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                </TableHead>
+                <TableHead>
                   Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rules.map((rule) => {
                 const category = getCategoryById(rule.categoryId)
                 
                 return (
-                  <tr key={rule.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <TableRow key={rule.id} className="hover:bg-gray-50">
+                    <TableCell className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium">
                         {rule.pattern.length > 30 
                           ? `${rule.pattern.substring(0, 30)}...` 
@@ -498,8 +511,8 @@ export function RulesView() {
                           {rule.description}
                         </div>
                       )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         rule.isRegex 
                           ? 'bg-purple-100 text-purple-800' 
@@ -507,8 +520,8 @@ export function RulesView() {
                       }`}>
                         {rule.isRegex ? 'Regex' : 'Text'}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap">
                       {category ? (
                         <div className="flex items-center">
                           {category.color && (
@@ -522,11 +535,11 @@ export function RulesView() {
                       ) : (
                         <span className="text-sm text-gray-500">Unknown</span>
                       )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {rule.priority}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         rule.isEnabled 
                           ? 'bg-green-100 text-green-800' 
@@ -544,8 +557,8 @@ export function RulesView() {
                           </>
                         )}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    </TableCell>
+                    <TableCell className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <Button 
                         variant="ghost" 
                         size="sm"
@@ -562,12 +575,12 @@ export function RulesView() {
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
       

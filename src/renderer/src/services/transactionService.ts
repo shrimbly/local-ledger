@@ -76,10 +76,55 @@ export async function getTransactionById(id: string): Promise<Transaction | null
   }
 }
 
+// Function to check if a transaction with same date and amount already exists
+async function isDuplicate(data: TransactionCreateInput): Promise<boolean> {
+  try {
+    // Get the date string in ISO format for comparison
+    const dateString = data.date.toISOString().split('T')[0]; // Get just the YYYY-MM-DD part
+    
+    // Get all transactions
+    const allTransactions = await getAllTransactions();
+    
+    // Check if any transaction has the same date and amount
+    return allTransactions.some(transaction => {
+      // Get the date string in same format
+      const existingDateString = transaction.date.toISOString().split('T')[0];
+      
+      // Match on date and amount only
+      return existingDateString === dateString && 
+             transaction.amount === data.amount;
+    });
+  } catch (error) {
+    console.error('Error checking for duplicate transaction:', error);
+    return false; // Fail open - if we can't check, we'll create anyway
+  }
+}
+
 // Create new transaction
 export async function createTransaction(data: TransactionCreateInput): Promise<Transaction> {
   try {
     console.log('Creating transaction via IPC:', data);
+    
+    // Check if this transaction already exists in the database
+    const duplicate = await isDuplicate(data);
+    if (duplicate) {
+      console.log('Skipping duplicate transaction:', data);
+      // Create a "fake" transaction for the return value that includes the properties
+      // needed by the caller, but don't actually save it to the database
+      return {
+        id: 'skipped-duplicate',
+        date: data.date,
+        description: data.description,
+        details: data.details || null,
+        amount: data.amount,
+        isUnexpected: data.isUnexpected || false,
+        sourceFile: data.sourceFile || null,
+        categoryId: data.categoryId || null,
+        category: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+    }
     
     // Apply categorization rules if category is not specified
     if (data.categoryId === undefined || data.categoryId === null) {
@@ -124,11 +169,23 @@ export async function createTransaction(data: TransactionCreateInput): Promise<T
 // Create multiple transactions
 export async function createTransactions(data: TransactionCreateInput[]): Promise<Transaction[]> {
   try {
-    const transactions = await window.database.transactions.create(data)
-    return transactions.map(formatTransactionData)
+    const results: Transaction[] = [];
+    
+    // Process each transaction individually to apply duplicate checking
+    for (const item of data) {
+      try {
+        const transaction = await createTransaction(item);
+        results.push(transaction);
+      } catch (err) {
+        console.error('Error creating individual transaction:', err);
+        // Continue with other transactions even if one fails
+      }
+    }
+    
+    return results;
   } catch (error) {
-    console.error('Error creating transactions:', error)
-    throw error
+    console.error('Error creating transactions:', error);
+    throw error;
   }
 }
 

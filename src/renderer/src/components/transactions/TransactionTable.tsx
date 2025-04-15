@@ -1,3 +1,4 @@
+import React, { useState } from 'react'
 import {
   Table,
   TableBody,
@@ -8,7 +9,7 @@ import {
   TableRow
 } from '../ui/table'
 import { Button } from '../ui/button'
-import { Edit, Trash2 } from 'lucide-react'
+import { Edit, Trash2, Check } from 'lucide-react'
 import { Checkbox } from '../ui/checkbox'
 import { Transaction } from '../../lib/types'
 import { useFilterStore, useCategoryStore } from '../../stores'
@@ -16,6 +17,14 @@ import { TransactionFilters } from '../../stores/filterStore'
 import { Label } from '../ui/label'
 import { Form, FormField, FormItem, FormControl } from '../ui/form'
 import { formatDate } from '../../lib/format'
+import { Combobox } from '../ui/combobox'
+import { updateTransaction } from '../../services/transactionService'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "../ui/popover"
+import { SimpleCategorySelector } from './SimpleCategorySelector'
 
 interface TransactionTableProps {
   transactions: Transaction[]
@@ -38,6 +47,9 @@ function TransactionTable({
   enableSelection = false,
   onRowClick
 }: TransactionTableProps) {
+  // Track which transaction's category popover is open
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  
   // Get filter store state and actions
   const { 
     filters,
@@ -45,9 +57,29 @@ function TransactionTable({
     setSortDirection
   } = useFilterStore()
   
-  // Get category store selectors
-  const { getCategoryColor } = useCategoryStore()
+  // Get category store selectors and data
+  const { getCategoryColor, categories } = useCategoryStore()
+
+  // Format categories for combobox
+  const categoryOptions = categories.map(category => ({
+    value: category.id,
+    label: category.name
+  }))
   
+  // Handle category change
+  const handleCategoryChange = async (transactionId: string, categoryId: string) => {
+    console.log("Updating category for transaction", transactionId, "to", categoryId);
+    try {
+      await updateTransaction(transactionId, { categoryId });
+      // Close the popover
+      setOpenCategoryId(null);
+      // Refresh the transactions list
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating transaction category:', error);
+    }
+  }
+
   // Handle column header click for sorting
   const handleSort = (column: TransactionFilters['sortBy']) => {
     if (filters.sortBy === column) {
@@ -89,7 +121,19 @@ function TransactionTable({
   }
 
   // Handle row click
-  const handleRowClick = (transaction: Transaction) => {
+  const handleRowClick = (e: React.MouseEvent, transaction: Transaction) => {
+    // Don't trigger row click if clicking on a button, checkbox, or combobox
+    if (
+      e.target instanceof HTMLElement && 
+      (e.target.closest('button') || 
+       e.target.closest('[role="combobox"]') ||
+       e.target.closest('[data-slot="command"]') ||
+       e.target.closest('[data-slot="popover"]')
+      )
+    ) {
+      return;
+    }
+    
     if (onRowClick) onRowClick(transaction)
   }
 
@@ -205,7 +249,7 @@ function TransactionTable({
             <TableRow 
               key={transaction.id} 
               className={`hover:bg-gray-50 ${transaction.isUnexpected ? 'bg-red-50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
-              onClick={onRowClick ? () => handleRowClick(transaction) : undefined}
+              onClick={(e) => handleRowClick(e, transaction)}
             >
               {enableSelection && (
                 <TableCell className="p-0">
@@ -225,7 +269,10 @@ function TransactionTable({
               </TableCell>
               <TableCell>{transaction.description}</TableCell>
               <TableCell>{transaction.details || '-'}</TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => {
+                e.stopPropagation(); 
+                console.log("TableCell clicked");
+              }}>
                 {transaction.categoryId ? (
                   <div className="flex items-center">
                     <span 
@@ -235,7 +282,9 @@ function TransactionTable({
                     {transaction.category?.name || 'Unknown'}
                   </div>
                 ) : (
-                  <span className="text-gray-400">Uncategorized</span>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <SimpleCategorySelector transactionId={transaction.id} />
+                  </div>
                 )}
               </TableCell>
               <TableCell className={`text-right ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>

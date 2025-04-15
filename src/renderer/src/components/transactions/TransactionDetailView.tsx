@@ -428,7 +428,14 @@ export function TransactionDetailView({
                     <SelectTrigger id="category" className="w-full">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent 
+                      className="max-h-[450px] overflow-y-auto"
+                      position="popper"
+                      side="bottom"
+                      sideOffset={5}
+                      align="start"
+                      avoidCollisions
+                    >
                       <SelectItem value="no-category">Uncategorized</SelectItem>
                       <SelectItem value="add-new" className="text-blue-600 font-medium">
                         + Add New Category

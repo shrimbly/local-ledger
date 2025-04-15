@@ -90,7 +90,10 @@ export function CategoryBreakdownChart({ timeFilter = 'all' }: CategoryBreakdown
       }
     })
 
-    // Sort by value (highest first) and calculate percentages for top categories
+    // Sort from smallest to largest for the chart display
+    const sortedChartData = [...chartData].sort((a, b) => a.value - b.value)
+
+    // Sort by value (highest first) for the top categories list
     const topCategories = [...chartData]
       .sort((a, b) => b.value - a.value)
       .slice(0, 5)
@@ -99,7 +102,7 @@ export function CategoryBreakdownChart({ timeFilter = 'all' }: CategoryBreakdown
         percentage: (cat.value / totalExpense) * 100
       }))
 
-    return { chartData, totalExpense, topCategories }
+    return { chartData: sortedChartData, totalExpense, topCategories }
   }, [transactions, categories, timeFilter])
 
   if (isLoading) {
@@ -156,6 +159,7 @@ export function CategoryBreakdownChart({ timeFilter = 'all' }: CategoryBreakdown
             arcLinkLabelsTextColor="#888888"
             arcLinkLabelsThickness={2}
             arcLinkLabelsColor={{ from: 'color' }}
+            arcLinkLabel="label"
             tooltip={({ datum }) => (
               <div className="bg-white dark:bg-gray-800 border rounded-md shadow-md p-2 bg-opacity-100">
                 <strong>{datum.label}</strong>

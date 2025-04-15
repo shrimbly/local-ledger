@@ -153,8 +153,10 @@ export function mapCSVToTransactions(
       sourceFile: fileName,
     }
   }).filter(transaction => 
-    // Filter out invalid transactions
-    transaction.description && !isNaN(transaction.amount)
+    // Only filter out transactions missing date or amount (the essential fields)
+    transaction.date instanceof Date && 
+    !isNaN(transaction.date.getTime()) &&
+    !isNaN(transaction.amount)
   )
 }
 
@@ -172,9 +174,8 @@ export function detectDuplicates(
   return newTransactions
     .map((newTrans, index) => {
       const isDuplicate = existingTransactions.some(existingTrans => 
-        // Match on date, description and amount
+        // Match on date and amount only
         existingTrans.date.toDateString() === newTrans.date.toDateString() &&
-        existingTrans.description === newTrans.description &&
         existingTrans.amount === newTrans.amount
       )
       

@@ -83,8 +83,8 @@ function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: Colum
     }))
   }
 
-  // Validation - only required fields need to be valid
-  const isValid = mapping.dateColumn && mapping.descriptionColumn && mapping.amountColumn
+  // Validation - only date and amount fields are required
+  const isValid = mapping.dateColumn && mapping.amountColumn
 
   // Generate preview of data with current mapping
   const preview = data.slice(0, 3).map(row => ({

@@ -767,7 +767,10 @@ export async function applyCategorizationRules(transaction: Transaction): Promis
     if (!rules.length) return null;
     
     // Lowercase the description for case-insensitive matching
-    const description = transaction.description.toLowerCase();
+    const description = transaction.description?.toLowerCase() || '';
+    
+    // Also check details field if available
+    const details = transaction.details?.toLowerCase() || '';
     
     // Try each rule until a match is found
     for (const rule of rules) {
@@ -778,14 +781,17 @@ export async function applyCategorizationRules(transaction: Transaction): Promis
           // Use regex pattern matching
           try {
             const regex = new RegExp(rule.pattern, 'i'); // 'i' for case insensitive
-            isMatch = regex.test(description);
+            // Check both description and details
+            isMatch = regex.test(description) || (details && regex.test(details));
           } catch (regexError) {
             console.error(`Invalid regex pattern in rule ${rule.id}:`, regexError);
             continue;  // Skip this rule if regex is invalid
           }
         } else {
           // Use simple substring matching
-          isMatch = description.includes(rule.pattern.toLowerCase());
+          // Check both description and details
+          const pattern = rule.pattern.toLowerCase();
+          isMatch = description.includes(pattern) || (details && details.includes(pattern));
         }
         
         if (isMatch) {

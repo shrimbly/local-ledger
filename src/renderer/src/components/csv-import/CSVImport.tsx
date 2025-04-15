@@ -17,12 +17,14 @@ function CSVImport() {
   const [transactions, setTransactions] = useState<TransactionData[]>([])
   const [isSuccess, setIsSuccess] = useState(false)
   const [appliedRules, setAppliedRules] = useState<{count: number, transactions: string[]}>({count: 0, transactions: []})
+  const [duplicatesSkipped, setDuplicatesSkipped] = useState<number>(0)
 
   const handleFileSelected = async (selectedFile: File) => {
     setIsLoading(true)
     setError(null)
     setIsSuccess(false)
     setAppliedRules({count: 0, transactions: []})
+    setDuplicatesSkipped(0)
     
     try {
       const result = await parseCSVFile(selectedFile)
@@ -55,6 +57,7 @@ function CSVImport() {
     setIsLoading(true)
     setError(null)
     setAppliedRules({count: 0, transactions: []})
+    setDuplicatesSkipped(0)
     
     try {
       console.log('Attempting to save transactions:', transactions)
@@ -62,6 +65,7 @@ function CSVImport() {
       // Process transactions using the transaction service to apply categorization rules
       const savedTransactions: Transaction[] = []
       const rulesApplied: string[] = []
+      let skippedCount = 0
       
       // Process in batches to avoid overwhelming the system
       const batchSize = 50
@@ -84,6 +88,12 @@ function CSVImport() {
             
             const savedTransaction = await createTransaction(createInput)
             
+            // Check if this was a skipped duplicate
+            if (savedTransaction.id === 'skipped-duplicate') {
+              skippedCount++;
+              return null; // Don't add to savedTransactions
+            }
+            
             // Check if a rule was applied (categoryId was null initially but is now set)
             if (savedTransaction.categoryId && !transactionData.categoryId) {
               rulesApplied.push(savedTransaction.description)
@@ -93,9 +103,11 @@ function CSVImport() {
           })
         )
         
-        savedTransactions.push(...results)
+        // Filter out null values (skipped duplicates)
+        savedTransactions.push(...results.filter(t => t !== null) as Transaction[])
       }
       
+      setDuplicatesSkipped(skippedCount)
       setAppliedRules({
         count: rulesApplied.length,
         transactions: rulesApplied
@@ -103,6 +115,7 @@ function CSVImport() {
       
       setIsSuccess(true)
       console.log('Saved transactions:', savedTransactions.length)
+      console.log('Skipped duplicates:', skippedCount)
     } catch (err) {
       setError('Failed to save transactions. Please try again.')
       console.error('Error saving transactions:', err)
@@ -117,6 +130,14 @@ function CSVImport() {
         <h2 className="text-xl font-semibold mb-4 text-gray-800">Import Transactions</h2>
         
         <FileSelector onFileSelected={handleFileSelected} />
+        
+        <div className="mt-4 text-sm text-gray-600">
+          <p>
+            <span className="font-medium">Note:</span> Only date and amount fields are required. 
+            Description and details are optional. 
+            Duplicate transactions (with the same date and amount) will be automatically skipped.
+          </p>
+        </div>
         
         {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded">
@@ -156,8 +177,19 @@ function CSVImport() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span className="font-medium">Successfully imported {transactions.length} transactions!</span>
+                  <span className="font-medium">Successfully imported {transactions.length - duplicatesSkipped} transactions!</span>
                 </div>
+                
+                {duplicatesSkipped > 0 && (
+                  <div className="mt-2 flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <span className="font-medium">{duplicatesSkipped} {duplicatesSkipped === 1 ? 'transaction was' : 'transactions were'} skipped (already exists)</span>
+                    </div>
+                  </div>
+                )}
                 
                 {appliedRules.count > 0 && (
                   <div className="mt-2 flex items-start">

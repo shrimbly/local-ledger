@@ -88,20 +88,28 @@ export function createRuleSuggestionFromTransaction(
   transaction: Transaction, 
   categoryId: string
 ): CategorizationRuleCreateInput | null {
-  if (!transaction.description || !categoryId) {
-    return null
+  if (!categoryId) {
+    return null;
   }
 
+  // Determine which field to use for the pattern
+  const textToUse = transaction.description || transaction.details || "";
+  
+  // If we have no text to use at all, return null
+  if (!textToUse.trim()) {
+    return null;
+  }
+  
   // Create a rule suggestion
-  // Extract the first 3-5 words from the description, or a keyword that seems significant
-  const words = transaction.description.split(/\s+/);
+  // Extract the first 3-5 words from the description/details, or a keyword that seems significant
+  const words = textToUse.split(/\s+/);
   let pattern = '';
 
   if (words.length <= 3) {
-    // If the description is short, use the whole description
-    pattern = transaction.description;
+    // If the text is short, use the whole text
+    pattern = textToUse;
   } else {
-    // For longer descriptions, try to find a significant portion
+    // For longer text, try to find a significant portion
     // This is a simplified approach - could be made more sophisticated
     
     // Option 1: Try to find a business name at the beginning (common in transactions)
@@ -116,10 +124,13 @@ export function createRuleSuggestionFromTransaction(
               firstThreeWords;
   }
 
+  // Determine an appropriate description for the rule
+  const sourceField = transaction.description ? "description" : "details";
+  
   return {
     pattern,
     isRegex: false,
-    description: `Auto-generated rule for "${transaction.description}"`,
+    description: `Auto-generated rule for "${textToUse}" (from ${sourceField})`,
     priority: 0,
     isEnabled: true,
     categoryId
