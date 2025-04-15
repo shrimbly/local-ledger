@@ -15,8 +15,10 @@ import {
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { Transaction, TransactionCreateInput, TransactionUpdateInput } from '../../lib/types'
+import { Transaction, TransactionCreateInput, TransactionUpdateInput, CategorizationRuleCreateInput } from '../../lib/types'
 import { useTransactionStore, useCategoryStore } from '../../stores'
+import { createRuleSuggestionFromTransaction } from '../../services/categorizationRuleService'
+import { createCategorizationRule } from '../../services/categorizationRuleService'
 
 interface TransactionFormProps {
   transaction: Transaction | null
@@ -50,6 +52,9 @@ export function TransactionForm({ transaction, onSave, onCancel }: TransactionFo
   // Form state
   const [error, setError] = useState<string | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
+
+  // Add state for the "Always assign category" checkbox
+  const [createRule, setCreateRule] = useState(false)
 
   // Load categories on mount
   useEffect(() => {
@@ -107,6 +112,29 @@ export function TransactionForm({ transaction, onSave, onCancel }: TransactionFo
           categoryId: finalCategoryId
         }
         await updateTransaction(transaction.id, updateData)
+        
+        // Create categorization rule if checkbox is checked and a category is selected
+        if (createRule && finalCategoryId) {
+          try {
+            const updatedTransaction = {
+              ...transaction,
+              ...updateData,
+              categoryId: finalCategoryId
+            }
+            const ruleSuggestion = createRuleSuggestionFromTransaction(
+              updatedTransaction as Transaction, 
+              finalCategoryId
+            )
+            
+            if (ruleSuggestion) {
+              await createCategorizationRule(ruleSuggestion)
+              console.log('Created new categorization rule:', ruleSuggestion.pattern)
+            }
+          } catch (ruleError) {
+            console.error('Error creating categorization rule:', ruleError)
+            // Don't block the transaction update if rule creation fails
+          }
+        }
       } else {
         // Create new transaction
         const createData: TransactionCreateInput = {
@@ -117,7 +145,25 @@ export function TransactionForm({ transaction, onSave, onCancel }: TransactionFo
           isUnexpected,
           categoryId: finalCategoryId === null ? undefined : finalCategoryId
         }
-        await addTransaction(createData)
+        const newTransaction = await addTransaction(createData)
+        
+        // Create categorization rule if checkbox is checked and a category is selected
+        if (createRule && finalCategoryId && newTransaction) {
+          try {
+            const ruleSuggestion = createRuleSuggestionFromTransaction(
+              newTransaction as Transaction, 
+              finalCategoryId
+            )
+            
+            if (ruleSuggestion) {
+              await createCategorizationRule(ruleSuggestion)
+              console.log('Created new categorization rule:', ruleSuggestion.pattern)
+            }
+          } catch (ruleError) {
+            console.error('Error creating categorization rule:', ruleError)
+            // Don't block the transaction creation if rule creation fails
+          }
+        }
       }
 
       // Signal to parent that we've updated data
@@ -229,6 +275,23 @@ export function TransactionForm({ transaction, onSave, onCancel }: TransactionFo
           </SelectContent>
         </Select>
       </div>
+
+      {/* Always assign category checkbox - only show when a category is selected */}
+      {categoryId && categoryId !== "no-category" && (
+        <div className="flex items-center space-x-2">
+          <input
+            type="checkbox"
+            id="createRule"
+            checked={createRule}
+            onChange={(e) => setCreateRule(e.target.checked)}
+            disabled={isLoading}
+            className="rounded border-gray-300 text-primary focus:ring-primary"
+          />
+          <Label htmlFor="createRule" className="cursor-pointer">
+            Always assign this category to similar transactions
+          </Label>
+        </div>
+      )}
 
       <div className="flex items-center space-x-2">
         <input

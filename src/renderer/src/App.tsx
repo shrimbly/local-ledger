@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import CSVImport from './components/csv-import/CSVImport'
 import TransactionsView from './components/transactions/TransactionsView'
 import { CategoriesView } from './components/categories/CategoriesView'
+import RulesView from './components/rules/RulesView'
+import AnalyticsView from './components/analytics/AnalyticsView'
+import { ApiKeyTest } from './components/ApiKeyTest'
+import { GeminiTest } from './components/gemini/GeminiTest'
+import { SettingsView } from './components/settings/SettingsView'
 import { Button } from './components/ui/button'
 import { useUiStore } from './stores'
 
@@ -31,7 +36,7 @@ function App(): JSX.Element {
   const toggleDarkMode = useUiStore(state => state.toggleDarkMode)
   
   // Fix: Use state with explicit setter for activeView
-  const [activeView, setActiveView] = useState<'transactions' | 'import' | 'categories' | 'test'>('test')
+  const [activeView, setActiveView] = useState<'transactions' | 'import' | 'categories' | 'rules' | 'test' | 'analytics' | 'settings'>('transactions')
   
   // Count re-renders
   const renderCount = useRef(0);
@@ -50,6 +55,7 @@ function App(): JSX.Element {
   const transactionsBtnRef = useRef<HTMLButtonElement>(null);
   const categoriesBtnRef = useRef<HTMLButtonElement>(null);
   const importBtnRef = useRef<HTMLButtonElement>(null);
+  const rulesBtnRef = useRef<HTMLButtonElement>(null);
   
   // Track button click attempts
   const [clickHistory, setClickHistory] = useState<string[]>([]);
@@ -83,6 +89,28 @@ function App(): JSX.Element {
     setActiveView('import');
   }
   
+  const switchToRules = (e: React.MouseEvent) => {
+    console.log('Rules button clicked', e);
+    console.dir(e.currentTarget);
+    setClickHistory(prev => [...prev, `Rules (${new Date().toLocaleTimeString()})`]);
+    setActiveView('rules');
+  }
+  
+  const switchToAnalytics = (e: React.MouseEvent) => {
+    console.log('Analytics button clicked', e);
+    console.dir(e.currentTarget);
+    setClickHistory(prev => [...prev, `Analytics (${new Date().toLocaleTimeString()})`]);
+    setActiveView('analytics');
+  }
+  
+  // Add settings view handler
+  const switchToSettings = (e: React.MouseEvent) => {
+    console.log('Settings button clicked', e);
+    console.dir(e.currentTarget);
+    setClickHistory(prev => [...prev, `Settings (${new Date().toLocaleTimeString()})`]);
+    setActiveView('settings');
+  }
+  
   // Simple test component
   const SimpleTest = () => {
     return (
@@ -101,6 +129,16 @@ function App(): JSX.Element {
         <div className="mt-4">
           <p>Current view: <strong>{activeView}</strong></p>
           <p>Render count: <strong>{renderCount.current}</strong></p>
+        </div>
+        
+        <div className="mt-6">
+          <h3 className="text-xl font-semibold mb-3">API Key Testing</h3>
+          <ApiKeyTest />
+        </div>
+        
+        <div className="mt-6">
+          <h3 className="text-xl font-semibold mb-3">Gemini API Testing</h3>
+          <GeminiTest />
         </div>
         
         <div className="mt-4 p-4 bg-gray-100 rounded-md">
@@ -185,6 +223,28 @@ function App(): JSX.Element {
             >
               Import CSV
             </Button>
+            <Button 
+              ref={rulesBtnRef}
+              variant={activeView === 'rules' ? 'default' : 'outline'}
+              onClick={switchToRules}
+              className="border-2 border-orange-500"
+            >
+              Rules
+            </Button>
+            <Button 
+              variant={activeView === 'analytics' ? 'default' : 'outline'}
+              onClick={switchToAnalytics}
+              className="border-2 border-indigo-500"
+            >
+              Analytics
+            </Button>
+            <Button 
+              variant={activeView === 'settings' ? 'default' : 'outline'}
+              onClick={switchToSettings}
+              className="border-2 border-gray-500"
+            >
+              Settings
+            </Button>
           </div>
         </header>
         
@@ -195,6 +255,9 @@ function App(): JSX.Element {
             if (activeView === 'import') return <CSVImport />;
             if (activeView === 'transactions') return <TransactionsView />;
             if (activeView === 'categories') return <CategoriesView />;
+            if (activeView === 'rules') return <RulesView />;
+            if (activeView === 'analytics') return <AnalyticsView />;
+            if (activeView === 'settings') return <SettingsView />;
             return <div>Unknown view: {activeView}</div>;
           })()}
         </main>

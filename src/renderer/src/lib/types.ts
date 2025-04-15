@@ -19,6 +19,20 @@ export interface Category {
   name: string
   color?: string | null
   transactions?: Transaction[]
+  rules?: CategorizationRule[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CategorizationRule {
+  id: string
+  pattern: string
+  isRegex: boolean
+  description?: string | null
+  priority: number
+  isEnabled: boolean
+  categoryId: string
+  category?: Category | null
   createdAt: Date
   updatedAt: Date
 }
@@ -54,4 +68,22 @@ export interface CategoryCreateInput {
 export interface CategoryUpdateInput {
   name?: string
   color?: string | null
+}
+
+export interface CategorizationRuleCreateInput {
+  pattern: string
+  isRegex?: boolean
+  description?: string
+  priority?: number
+  isEnabled?: boolean
+  categoryId: string
+}
+
+export interface CategorizationRuleUpdateInput {
+  pattern?: string
+  isRegex?: boolean
+  description?: string | null
+  priority?: number
+  isEnabled?: boolean
+  categoryId?: string
 } 

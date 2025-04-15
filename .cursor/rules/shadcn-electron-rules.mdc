@@ -1,9 +1,4 @@
 ---
-description: 
-globs: 
-alwaysApply: false
----
- ---
 description: Guidelines for installing and working with ShadCN UI components in an Electron project
 globs: "**/*.{tsx,jsx,ts,js}"
 alwaysApply: true
@@ -39,4 +34,4 @@ npx shadcn@latest add dropdown-menu
 # 2. Fix any import paths in the new file
 # Change: import { cn } from "src/lib/utils"
 # To: import { cn } from "../../lib/utils"
-```
+``` 

@@ -3,6 +3,8 @@ import FileSelector from './FileSelector'
 import ColumnMapper, { ColumnMapping } from './ColumnMapper'
 import { parseCSVFile, mapCSVToTransactions, TransactionData } from '../../services/csvParser'
 import { Button } from '../ui/button'
+import { createTransaction, createTransactions } from '../../services/transactionService'
+import { Transaction, TransactionCreateInput } from '../../lib/types'
 
 function CSVImport() {
   const [file, setFile] = useState<File | null>(null)
@@ -13,11 +15,13 @@ function CSVImport() {
   const [error, setError] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<TransactionData[]>([])
   const [isSuccess, setIsSuccess] = useState(false)
+  const [appliedRules, setAppliedRules] = useState<{count: number, transactions: string[]}>({count: 0, transactions: []})
 
   const handleFileSelected = async (selectedFile: File) => {
     setIsLoading(true)
     setError(null)
     setIsSuccess(false)
+    setAppliedRules({count: 0, transactions: []})
     
     try {
       const result = await parseCSVFile(selectedFile)
@@ -49,13 +53,55 @@ function CSVImport() {
   const handleSaveTransactions = async () => {
     setIsLoading(true)
     setError(null)
+    setAppliedRules({count: 0, transactions: []})
     
     try {
       console.log('Attempting to save transactions:', transactions)
-      // Send the entire array of transactions at once
-      const results = await window.database.transactions.create(transactions)
+      
+      // Process transactions using the transaction service to apply categorization rules
+      const savedTransactions: Transaction[] = []
+      const rulesApplied: string[] = []
+      
+      // Process in batches to avoid overwhelming the system
+      const batchSize = 50
+      for (let i = 0; i < transactions.length; i += batchSize) {
+        const batch = transactions.slice(i, i + batchSize)
+        
+        // Use the transaction service to ensure rules are applied
+        const results = await Promise.all(
+          batch.map(async (transactionData) => {
+            // Convert TransactionData to TransactionCreateInput
+            const createInput: TransactionCreateInput = {
+              date: transactionData.date,
+              description: transactionData.description,
+              details: transactionData.details,
+              amount: transactionData.amount,
+              isUnexpected: transactionData.isUnexpected,
+              sourceFile: transactionData.sourceFile,
+              categoryId: transactionData.categoryId === null ? undefined : transactionData.categoryId
+            }
+            
+            const savedTransaction = await createTransaction(createInput)
+            
+            // Check if a rule was applied (categoryId was null initially but is now set)
+            if (savedTransaction.categoryId && !transactionData.categoryId) {
+              rulesApplied.push(savedTransaction.description)
+            }
+            
+            return savedTransaction
+          })
+        )
+        
+        savedTransactions.push(...results)
+      }
+      
+      setAppliedRules({
+        count: rulesApplied.length,
+        transactions: rulesApplied
+      })
+      
       setIsSuccess(true)
-      console.log('Saved transactions response:', results)
+      console.log('Saved transactions:', savedTransactions.length)
     } catch (err) {
       setError('Failed to save transactions. Please try again.')
       console.error('Error saving transactions:', err)
@@ -111,6 +157,24 @@ function CSVImport() {
                   </svg>
                   <span className="font-medium">Successfully imported {transactions.length} transactions!</span>
                 </div>
+                
+                {appliedRules.count > 0 && (
+                  <div className="mt-2 flex items-start">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <div>
+                      <span className="font-medium">{appliedRules.count} transactions were automatically categorized!</span>
+                      {appliedRules.transactions.length > 0 && (
+                        <div className="text-sm mt-1 text-green-700">
+                          <p>Examples: {appliedRules.transactions.slice(0, 3).map(t => `"${t}"`).join(", ")}
+                          {appliedRules.transactions.length > 3 ? ` and ${appliedRules.transactions.length - 3} more...` : ""}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             

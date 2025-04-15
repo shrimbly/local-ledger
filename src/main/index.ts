@@ -5,6 +5,11 @@ import icon from '../../resources/icon.png?asset'
 import path from 'path'
 import fs from 'fs'
 
+// Import keytar service
+import { KeytarService, ApiKeyType } from './keytar-service'
+// Import Gemini service
+import { GeminiService } from './gemini-service'
+
 // Set NODE_ENV for development/production detection
 process.env.NODE_ENV = is.dev ? 'development' : 'production';
 
@@ -29,7 +34,14 @@ import {
   deleteCategory,
   initDatabase,
   disconnectDatabase,
-  clearDatabase
+  clearDatabase,
+  getAllCategorizationRules,
+  getCategorizationRuleById,
+  getCategorizationRulesByCategory,
+  createCategorizationRule,
+  updateCategorizationRule,
+  deleteCategorizationRule,
+  applyCategorizationRules
 } from './database'
 
 // Import types
@@ -38,7 +50,9 @@ import {
   TransactionUpdateInput,
   CategoryCreateInput,
   CategoryUpdateInput,
-  TransactionCreateInputArray
+  TransactionCreateInputArray,
+  CategorizationRuleCreateInput,
+  CategorizationRuleUpdateInput
 } from './types'
 
 function createWindow(): void {
@@ -78,10 +92,13 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // Register IPC handlers
+  setupIPC()
 }
 
 // Set up IPC handlers for database operations
-function setupIpcHandlers(): void {
+function setupIPC(): void {
   // Transaction handlers
   ipcMain.handle('get-transactions', async () => {
     try {
@@ -193,6 +210,104 @@ function setupIpcHandlers(): void {
       throw error
     }
   })
+
+  // Categorization Rule handlers
+  ipcMain.handle('categorization-rule:getAll', async () => {
+    return await getAllCategorizationRules()
+  })
+
+  ipcMain.handle('categorization-rule:getById', async (_, id: string) => {
+    return await getCategorizationRuleById(id)
+  })
+
+  ipcMain.handle('categorization-rule:getByCategory', async (_, categoryId: string) => {
+    return await getCategorizationRulesByCategory(categoryId)
+  })
+
+  ipcMain.handle('categorization-rule:create', async (_, data: CategorizationRuleCreateInput) => {
+    return await createCategorizationRule(data)
+  })
+
+  ipcMain.handle('categorization-rule:update', async (_, id: string, data: CategorizationRuleUpdateInput) => {
+    return await updateCategorizationRule(id, data)
+  })
+
+  ipcMain.handle('categorization-rule:delete', async (_, id: string) => {
+    return await deleteCategorizationRule(id)
+  })
+
+  ipcMain.handle('categorization-rule:apply', async (_, transaction: TransactionCreateInput) => {
+    return await applyCategorizationRules(transaction as any)
+  })
+
+  // API Key management handlers
+  ipcMain.handle('api-key:store', async (_, type: string, key: string) => {
+    try {
+      return await KeytarService.storeApiKey(type as ApiKeyType, key)
+    } catch (error) {
+      console.error(`Error storing API key for ${type}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('api-key:get', async (_, type: string) => {
+    try {
+      return await KeytarService.getApiKey(type as ApiKeyType)
+    } catch (error) {
+      console.error(`Error getting API key for ${type}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('api-key:delete', async (_, type: string) => {
+    try {
+      return await KeytarService.deleteApiKey(type as ApiKeyType)
+    } catch (error) {
+      console.error(`Error deleting API key for ${type}:`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('api-key:exists', async (_, type: string) => {
+    try {
+      return await KeytarService.hasApiKey(type as ApiKeyType)
+    } catch (error) {
+      console.error(`Error checking if API key exists for ${type}:`, error)
+      throw error
+    }
+  })
+
+  // Gemini API handlers
+  ipcMain.handle('gemini:initialize', async () => {
+    try {
+      return await GeminiService.initialize()
+    } catch (error) {
+      console.error('Error initializing Gemini:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('gemini:is-initialized', () => {
+    return GeminiService.isInitialized()
+  })
+
+  ipcMain.handle('gemini:suggest-category', async (_, description: string, amount: number, details?: string, existingCategories?: string[]) => {
+    try {
+      return await GeminiService.suggestCategory(description, amount, details, existingCategories)
+    } catch (error) {
+      console.error('Error suggesting category:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('gemini:analyze-transactions', async (_, transactions: any[]) => {
+    try {
+      return await GeminiService.analyzeTransactions(transactions)
+    } catch (error) {
+      console.error('Error analyzing transactions:', error)
+      throw error
+    }
+  })
 }
 
 // This method will be called when Electron has finished
@@ -208,7 +323,7 @@ app.whenReady().then(async () => {
   }
 
   // Set up IPC handlers for database operations
-  setupIpcHandlers()
+  setupIPC()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')

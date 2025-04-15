@@ -16,6 +16,23 @@ interface DatabaseAPI {
     delete: (id: string) => Promise<any>
   }
   clearDatabase: () => Promise<boolean>
+  apiKeys: {
+    store: (type: string, key: string) => Promise<boolean>
+    get: (type: string) => Promise<string | null>
+    delete: (type: string) => Promise<boolean>
+    exists: (type: string) => Promise<boolean>
+  }
+  gemini: {
+    initialize: () => Promise<boolean>
+    isInitialized: () => Promise<boolean>
+    suggestCategory: (
+      description: string, 
+      amount: number, 
+      details?: string, 
+      existingCategories?: string[]
+    ) => Promise<string | null>
+    analyzeTransactions: (transactions: any[]) => Promise<string | null>
+  }
 }
 
 declare global {

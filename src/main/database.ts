@@ -7,7 +7,10 @@ import {
   TransactionCreateInput, 
   TransactionUpdateInput,
   CategoryCreateInput,
-  CategoryUpdateInput
+  CategoryUpdateInput,
+  CategorizationRule,
+  CategorizationRuleCreateInput,
+  CategorizationRuleUpdateInput
 } from './types';
 
 // Import better-sqlite3 with CommonJS require
@@ -69,10 +72,28 @@ function initTables() {
     )
   `);
 
+  // Create CategorizationRules table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS CategorizationRules (
+      id TEXT PRIMARY KEY,
+      pattern TEXT NOT NULL,
+      isRegex INTEGER DEFAULT 0,
+      description TEXT,
+      priority INTEGER DEFAULT 0,
+      isEnabled INTEGER DEFAULT 1,
+      categoryId TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
+      FOREIGN KEY (categoryId) REFERENCES Categories(id) ON DELETE CASCADE
+    )
+  `);
+
   // Create indexes
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_transaction_date ON Transactions(date);
     CREATE INDEX IF NOT EXISTS idx_transaction_categoryId ON Transactions(categoryId);
+    CREATE INDEX IF NOT EXISTS idx_rule_categoryId ON CategorizationRules(categoryId);
+    CREATE INDEX IF NOT EXISTS idx_rule_isEnabled ON CategorizationRules(isEnabled);
   `);
   
   // Run migrations
@@ -90,6 +111,32 @@ function migrateDatabase() {
     if (!hasColorColumn) {
       console.log('Migrating Categories table: adding color column');
       db.exec('ALTER TABLE Categories ADD COLUMN color TEXT');
+    }
+    
+    // Check if CategorizationRules table exists and create it if not
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='CategorizationRules'").get();
+    if (!tableExists) {
+      console.log('Creating CategorizationRules table');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS CategorizationRules (
+          id TEXT PRIMARY KEY,
+          pattern TEXT NOT NULL,
+          isRegex INTEGER DEFAULT 0,
+          description TEXT,
+          priority INTEGER DEFAULT 0,
+          isEnabled INTEGER DEFAULT 1,
+          categoryId TEXT NOT NULL,
+          createdAt TEXT NOT NULL,
+          updatedAt TEXT NOT NULL,
+          FOREIGN KEY (categoryId) REFERENCES Categories(id) ON DELETE CASCADE
+        )
+      `);
+      
+      // Create index for faster lookups
+      db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_rule_categoryId ON CategorizationRules(categoryId);
+        CREATE INDEX IF NOT EXISTS idx_rule_isEnabled ON CategorizationRules(isEnabled);
+      `);
     }
   } catch (error) {
     console.error('Error during database migration:', error);
@@ -156,6 +203,19 @@ function rowToCategory(row: any): Category {
   };
 }
 
+// Convert SQLite row to CategorizationRule object
+function rowToCategorizationRule(row: any): CategorizationRule {
+  return {
+    ...row,
+    isRegex: !!row.isRegex, // Convert to boolean
+    isEnabled: !!row.isEnabled, // Convert to boolean
+    createdAt: new Date(row.createdAt),
+    updatedAt: new Date(row.updatedAt),
+    // Don't try to fetch category here - it will be handled separately if needed
+    category: null
+  };
+}
+
 // Helper to fetch transaction with category data
 export async function getTransactionWithCategory(id: string): Promise<Transaction | null> {
   try {
@@ -180,6 +240,7 @@ export async function getTransactionWithCategory(id: string): Promise<Transactio
 // Transaction operations
 export async function getAllTransactions(): Promise<Transaction[]> {
   try {
+    // This query is already correctly sorting by date in descending order (newest first)
     const rows = db.prepare('SELECT * FROM Transactions ORDER BY date DESC').all();
     const transactions = rows.map(rowToTransaction);
     
@@ -482,6 +543,227 @@ export async function deleteCategory(id: string): Promise<Category> {
   }
 }
 
+// CategorizationRule operations
+export async function getAllCategorizationRules(): Promise<CategorizationRule[]> {
+  try {
+    const rows = db.prepare('SELECT * FROM CategorizationRules ORDER BY priority DESC').all();
+    const rules = rows.map(rowToCategorizationRule);
+    
+    // Load categories for rules
+    for (const rule of rules) {
+      try {
+        const category = db.prepare('SELECT * FROM Categories WHERE id = ?').get(rule.categoryId);
+        if (category) {
+          rule.category = rowToCategory(category);
+        }
+      } catch (err) {
+        console.error(`Error loading category for rule ${rule.id}:`, err);
+      }
+    }
+    
+    return rules;
+  } catch (error) {
+    console.error('Error getting all categorization rules:', error);
+    throw error;
+  }
+}
+
+export async function getCategorizationRuleById(id: string): Promise<CategorizationRule | null> {
+  try {
+    const row = db.prepare('SELECT * FROM CategorizationRules WHERE id = ?').get(id);
+    if (!row) return null;
+    
+    const rule = rowToCategorizationRule(row);
+    
+    // Fetch category data
+    try {
+      const category = db.prepare('SELECT * FROM Categories WHERE id = ?').get(rule.categoryId);
+      if (category) {
+        rule.category = rowToCategory(category);
+      }
+    } catch (err) {
+      console.error(`Error loading category for rule ${id}:`, err);
+    }
+    
+    return rule;
+  } catch (error) {
+    console.error(`Error getting categorization rule ${id}:`, error);
+    throw error;
+  }
+}
+
+export async function getCategorizationRulesByCategory(categoryId: string): Promise<CategorizationRule[]> {
+  try {
+    const rows = db.prepare('SELECT * FROM CategorizationRules WHERE categoryId = ? ORDER BY priority DESC').all(categoryId);
+    return rows.map(rowToCategorizationRule);
+  } catch (error) {
+    console.error(`Error getting categorization rules for category ${categoryId}:`, error);
+    throw error;
+  }
+}
+
+export async function createCategorizationRule(data: CategorizationRuleCreateInput): Promise<CategorizationRule> {
+  try {
+    const now = new Date().toISOString();
+    const id = generateUUID();
+    
+    const stmt = db.prepare(`
+      INSERT INTO CategorizationRules (id, pattern, isRegex, description, priority, isEnabled, categoryId, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    stmt.run(
+      id,
+      data.pattern,
+      data.isRegex ? 1 : 0,
+      data.description || null,
+      data.priority || 0,
+      data.isEnabled !== false ? 1 : 0, // Default to true if not specified
+      data.categoryId,
+      now,
+      now
+    );
+    
+    return getCategorizationRuleById(id) as Promise<CategorizationRule>;
+  } catch (error) {
+    console.error('Error creating categorization rule:', error);
+    throw error;
+  }
+}
+
+export async function updateCategorizationRule(id: string, data: CategorizationRuleUpdateInput): Promise<CategorizationRule> {
+  try {
+    const rule = await getCategorizationRuleById(id);
+    if (!rule) {
+      throw new Error(`Categorization rule with id ${id} not found`);
+    }
+    
+    const now = new Date().toISOString();
+    
+    // Build update statement dynamically based on what fields were provided
+    const updateFields = [];
+    const params: any[] = [];
+    
+    if (data.pattern !== undefined) {
+      updateFields.push('pattern = ?');
+      params.push(data.pattern);
+    }
+    
+    if (data.isRegex !== undefined) {
+      updateFields.push('isRegex = ?');
+      params.push(data.isRegex ? 1 : 0);
+    }
+    
+    if (data.description !== undefined) {
+      updateFields.push('description = ?');
+      params.push(data.description);
+    }
+    
+    if (data.priority !== undefined) {
+      updateFields.push('priority = ?');
+      params.push(data.priority);
+    }
+    
+    if (data.isEnabled !== undefined) {
+      updateFields.push('isEnabled = ?');
+      params.push(data.isEnabled ? 1 : 0);
+    }
+    
+    if (data.categoryId !== undefined) {
+      updateFields.push('categoryId = ?');
+      params.push(data.categoryId);
+    }
+    
+    updateFields.push('updatedAt = ?');
+    params.push(now);
+    
+    // Add the id as the last parameter
+    params.push(id);
+    
+    // Only proceed if there are fields to update
+    if (updateFields.length > 0) {
+      const query = `
+        UPDATE CategorizationRules
+        SET ${updateFields.join(', ')}
+        WHERE id = ?
+      `;
+      
+      db.prepare(query).run(...params);
+    }
+    
+    return getCategorizationRuleById(id) as Promise<CategorizationRule>;
+  } catch (error) {
+    console.error(`Error updating categorization rule ${id}:`, error);
+    throw error;
+  }
+}
+
+export async function deleteCategorizationRule(id: string): Promise<CategorizationRule> {
+  try {
+    const rule = await getCategorizationRuleById(id);
+    if (!rule) {
+      throw new Error(`Categorization rule with id ${id} not found`);
+    }
+    
+    db.prepare('DELETE FROM CategorizationRules WHERE id = ?').run(id);
+    
+    return rule;
+  } catch (error) {
+    console.error(`Error deleting categorization rule ${id}:`, error);
+    throw error;
+  }
+}
+
+// Apply categorization rules to a transaction
+export async function applyCategorizationRules(transaction: Transaction): Promise<string | null> {
+  try {
+    // Get all enabled rules sorted by priority (highest first)
+    const rules = db.prepare(`
+      SELECT * FROM CategorizationRules 
+      WHERE isEnabled = 1 
+      ORDER BY priority DESC
+    `).all();
+    
+    if (!rules.length) return null;
+    
+    // Lowercase the description for case-insensitive matching
+    const description = transaction.description.toLowerCase();
+    
+    // Try each rule until a match is found
+    for (const rule of rules) {
+      try {
+        let isMatch = false;
+        
+        if (rule.isRegex) {
+          // Use regex pattern matching
+          try {
+            const regex = new RegExp(rule.pattern, 'i'); // 'i' for case insensitive
+            isMatch = regex.test(description);
+          } catch (regexError) {
+            console.error(`Invalid regex pattern in rule ${rule.id}:`, regexError);
+            continue;  // Skip this rule if regex is invalid
+          }
+        } else {
+          // Use simple substring matching
+          isMatch = description.includes(rule.pattern.toLowerCase());
+        }
+        
+        if (isMatch) {
+          return rule.categoryId;
+        }
+      } catch (ruleError) {
+        console.error(`Error applying rule ${rule.id}:`, ruleError);
+        continue;  // Skip to the next rule
+      }
+    }
+    
+    return null;  // No matching rule found
+  } catch (error) {
+    console.error('Error applying categorization rules:', error);
+    return null;
+  }
+}
+
 // Export the database instance for direct access if needed
 export default db; 
 
@@ -489,6 +771,7 @@ export default db;
 export async function clearDatabase(): Promise<boolean> {
   try {
     // Delete all data from tables
+    db.prepare('DELETE FROM CategorizationRules').run();
     db.prepare('DELETE FROM Transactions').run();
     db.prepare('DELETE FROM Categories').run();
     console.log('Database cleared successfully');

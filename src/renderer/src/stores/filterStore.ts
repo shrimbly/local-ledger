@@ -174,7 +174,8 @@ export const useFilterStore = create<FilterState>()(
             
             switch (filters.sortBy) {
               case 'date':
-                comparison = new Date(a.date).getTime() - new Date(b.date).getTime()
+                // Compare dates - for dates we want newest (later) dates first in descending order
+                comparison = new Date(b.date).getTime() - new Date(a.date).getTime()
                 break
               case 'amount':
                 comparison = a.amount - b.amount
@@ -190,8 +191,11 @@ export const useFilterStore = create<FilterState>()(
                 break
             }
             
-            // Apply sort direction
-            return filters.sortDirection === 'asc' ? comparison : -comparison
+            // Apply sort direction - for dates we've inverted the comparison already,
+            // so ascending means oldest first and descending means newest first
+            return filters.sortBy === 'date'
+              ? (filters.sortDirection === 'asc' ? -comparison : comparison)
+              : (filters.sortDirection === 'asc' ? comparison : -comparison)
           })
         },
         

@@ -13,6 +13,8 @@ import { Checkbox } from '../ui/checkbox'
 import { Transaction } from '../../lib/types'
 import { useFilterStore, useCategoryStore } from '../../stores'
 import { TransactionFilters } from '../../stores/filterStore'
+import { Label } from '../ui/label'
+import { Form, FormField, FormItem, FormControl } from '../ui/form'
 
 interface TransactionTableProps {
   transactions: Transaction[]
@@ -22,6 +24,7 @@ interface TransactionTableProps {
   selectedTransactions?: string[]
   onSelectionChange?: (selectedIds: string[]) => void
   enableSelection?: boolean
+  onRowClick?: (transaction: Transaction) => void
 }
 
 function TransactionTable({ 
@@ -31,7 +34,8 @@ function TransactionTable({
   onDelete,
   selectedTransactions = [],
   onSelectionChange,
-  enableSelection = false
+  enableSelection = false,
+  onRowClick
 }: TransactionTableProps) {
   // Get filter store state and actions
   const { 
@@ -81,6 +85,11 @@ function TransactionTable({
       // Select all
       onSelectionChange(transactions.map(t => t.id))
     }
+  }
+
+  // Handle row click
+  const handleRowClick = (transaction: Transaction) => {
+    if (onRowClick) onRowClick(transaction)
   }
 
   if (isLoading) {
@@ -150,12 +159,16 @@ function TransactionTable({
         <TableHeader>
           <TableRow>
             {enableSelection && (
-              <TableHead className="w-12">
-                <Checkbox 
-                  checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
-                  onCheckedChange={handleSelectAllRows}
-                  aria-label="Select all"
-                />
+              <TableHead className="w-12 p-0">
+                <div className="flex items-center justify-center w-8 h-8 mx-auto">
+                  <Checkbox 
+                    id="select-all"
+                    checked={transactions.length > 0 && selectedTransactions.length === transactions.length}
+                    onCheckedChange={handleSelectAllRows}
+                    aria-label="Select all"
+                    className="cursor-pointer"
+                  />
+                </div>
               </TableHead>
             )}
             <TableHead 
@@ -190,15 +203,20 @@ function TransactionTable({
           {transactions.map((transaction) => (
             <TableRow 
               key={transaction.id} 
-              className={`hover:bg-gray-50 ${transaction.isUnexpected ? 'bg-red-50' : ''}`}
+              className={`hover:bg-gray-50 ${transaction.isUnexpected ? 'bg-red-50' : ''} ${onRowClick ? 'cursor-pointer' : ''}`}
+              onClick={onRowClick ? () => handleRowClick(transaction) : undefined}
             >
               {enableSelection && (
-                <TableCell>
-                  <Checkbox 
-                    checked={selectedTransactions.includes(transaction.id)}
-                    onCheckedChange={() => handleRowSelection(transaction.id)}
-                    aria-label={`Select transaction ${transaction.description}`}
-                  />
+                <TableCell className="p-0">
+                  <div className="flex items-center justify-center w-8 h-8 mx-auto">
+                    <Checkbox 
+                      id={`select-${transaction.id}`}
+                      checked={selectedTransactions.includes(transaction.id)}
+                      onCheckedChange={() => handleRowSelection(transaction.id)}
+                      aria-label={`Select transaction ${transaction.description}`}
+                      className="cursor-pointer"
+                    />
+                  </div>
                 </TableCell>
               )}
               <TableCell className="font-medium">

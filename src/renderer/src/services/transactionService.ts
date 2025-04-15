@@ -1,4 +1,5 @@
 import { Transaction, TransactionCreateInput, TransactionUpdateInput } from '../lib/types'
+import { applyCategoryRules } from './categorizationRuleService'
 
 // Format transaction data received from IPC
 function formatTransactionData(transaction: any): Transaction {
@@ -79,6 +80,32 @@ export async function getTransactionById(id: string): Promise<Transaction | null
 export async function createTransaction(data: TransactionCreateInput): Promise<Transaction> {
   try {
     console.log('Creating transaction via IPC:', data);
+    
+    // Apply categorization rules if category is not specified
+    if (data.categoryId === undefined || data.categoryId === null) {
+      // Create temporary transaction object to check against rules
+      const tempTransaction: Transaction = {
+        id: 'temp',
+        date: data.date,
+        description: data.description,
+        details: data.details || null,
+        amount: data.amount,
+        isUnexpected: data.isUnexpected || false,
+        sourceFile: data.sourceFile || null,
+        categoryId: null,
+        category: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      // Try to find a category using rules
+      const matchedCategoryId = await applyCategoryRules(tempTransaction);
+      if (matchedCategoryId) {
+        console.log(`Applied categorization rule - assigned category: ${matchedCategoryId}`);
+        data.categoryId = matchedCategoryId;
+      }
+    }
+    
     const transaction = await window.database.transactions.create(data)
     console.log('Transaction creation response:', transaction);
     
@@ -108,6 +135,28 @@ export async function createTransactions(data: TransactionCreateInput[]): Promis
 // Update transaction
 export async function updateTransaction(id: string, data: TransactionUpdateInput): Promise<Transaction> {
   try {
+    // Apply categorization rules if the category is being explicitly set to null
+    if ('categoryId' in data && (data.categoryId === null || data.categoryId === undefined)) {
+      // Get the current transaction to apply rules on
+      const currentTransaction = await getTransactionById(id);
+      if (currentTransaction) {
+        // Apply the updates to create a temp transaction object
+        const tempTransaction: Transaction = {
+          ...currentTransaction,
+          ...data,
+          // Ensure we maintain the ID
+          id: currentTransaction.id
+        };
+        
+        // Try to find a category using rules
+        const matchedCategoryId = await applyCategoryRules(tempTransaction);
+        if (matchedCategoryId) {
+          console.log(`Applied categorization rule - assigned category: ${matchedCategoryId}`);
+          data.categoryId = matchedCategoryId;
+        }
+      }
+    }
+    
     const transaction = await window.database.transactions.update(id, data)
     return formatTransactionData(transaction)
   } catch (error) {

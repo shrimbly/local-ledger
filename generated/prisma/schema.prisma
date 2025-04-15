@@ -28,9 +28,23 @@ model Transaction {
 }
 
 model Category {
-  id           String        @id @default(uuid())
-  name         String        @unique
+  id           String              @id @default(uuid())
+  name         String              @unique
   transactions Transaction[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  rules        CategorizationRule[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model CategorizationRule {
+  id          String    @id @default(uuid())
+  pattern     String    // Text pattern to match (case insensitive)
+  isRegex     Boolean   @default(false)
+  description String?
+  priority    Int       @default(0) // Higher priority rules are applied first
+  isEnabled   Boolean   @default(true)
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  categoryId  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

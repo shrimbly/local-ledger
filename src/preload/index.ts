@@ -21,8 +21,54 @@ const api = {
     delete: (id: string) => ipcRenderer.invoke('delete-category', id)
   },
   
+  // Categorization Rule methods
+  categorizationRules: {
+    getAll: () => ipcRenderer.invoke('categorization-rule:getAll'),
+    getById: (id: string) => ipcRenderer.invoke('categorization-rule:getById', id),
+    getByCategory: (categoryId: string) => ipcRenderer.invoke('categorization-rule:getByCategory', categoryId),
+    create: (data: any) => ipcRenderer.invoke('categorization-rule:create', data),
+    update: (id: string, data: any) => ipcRenderer.invoke('categorization-rule:update', id, data),
+    delete: (id: string) => ipcRenderer.invoke('categorization-rule:delete', id),
+    apply: (transaction: any) => ipcRenderer.invoke('categorization-rule:apply', transaction)
+  },
+  
+  // API Key management
+  apiKeys: {
+    // Store an API key securely
+    store: (type: string, key: string) => ipcRenderer.invoke('api-key:store', type, key),
+    
+    // Get an API key
+    get: (type: string) => ipcRenderer.invoke('api-key:get', type),
+    
+    // Delete an API key
+    delete: (type: string) => ipcRenderer.invoke('api-key:delete', type),
+    
+    // Check if an API key exists
+    exists: (type: string) => ipcRenderer.invoke('api-key:exists', type)
+  },
+  
   // Database management
-  clearDatabase: () => ipcRenderer.invoke('clear-database')
+  clearDatabase: () => ipcRenderer.invoke('clear-database'),
+  
+  // Gemini API methods
+  gemini: {
+    // Initialize the Gemini client
+    initialize: () => ipcRenderer.invoke('gemini:initialize'),
+    
+    // Check if the Gemini client is initialized
+    isInitialized: () => ipcRenderer.invoke('gemini:is-initialized'),
+    
+    // Suggest a category for a transaction
+    suggestCategory: (
+      description: string, 
+      amount: number, 
+      details?: string, 
+      existingCategories?: string[]
+    ) => ipcRenderer.invoke('gemini:suggest-category', description, amount, details, existingCategories),
+    
+    // Analyze transactions for insights
+    analyzeTransactions: (transactions: any[]) => ipcRenderer.invoke('gemini:analyze-transactions', transactions)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
