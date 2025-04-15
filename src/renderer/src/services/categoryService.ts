@@ -44,6 +44,17 @@ export async function createCategory(data: CategoryCreateInput): Promise<Categor
   }
 }
 
+// Create multiple categories at once
+export async function createCategories(data: CategoryCreateInput[]): Promise<Category[]> {
+  try {
+    const categories = await window.database.categories.createBulk(data)
+    return categories.map(formatCategoryData)
+  } catch (error) {
+    console.error('Error creating categories:', error)
+    throw error
+  }
+}
+
 // Update category
 export async function updateCategory(id: string, data: CategoryUpdateInput): Promise<Category> {
   try {

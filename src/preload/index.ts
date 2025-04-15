@@ -17,6 +17,7 @@ const api = {
     getAll: () => ipcRenderer.invoke('get-categories'),
     getById: (id: string) => ipcRenderer.invoke('get-category', id),
     create: (data: any) => ipcRenderer.invoke('create-category', data),
+    createBulk: (data: any[]) => ipcRenderer.invoke('create-categories', data),
     update: (id: string, data: any) => ipcRenderer.invoke('update-category', id, data),
     delete: (id: string) => ipcRenderer.invoke('delete-category', id)
   },

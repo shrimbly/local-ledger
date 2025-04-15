@@ -70,6 +70,10 @@ export interface CategoryUpdateInput {
   color?: string | null
 }
 
+export interface BulkCategoryCreateInput {
+  categories: CategoryCreateInput[];
+}
+
 export interface CategorizationRuleCreateInput {
   pattern: string
   isRegex?: boolean

@@ -492,6 +492,46 @@ export async function createCategory(data: CategoryCreateInput): Promise<Categor
   }
 }
 
+export async function createCategories(data: CategoryCreateInput[]): Promise<Category[]> {
+  const results: Category[] = [];
+  
+  try {
+    // Start a transaction to ensure all-or-nothing insertion
+    const transaction = db.transaction((categories: CategoryCreateInput[]) => {
+      const now = new Date().toISOString();
+      const stmt = db.prepare(`
+        INSERT INTO Categories (id, name, color, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?)
+      `);
+      
+      for (const category of categories) {
+        const id = generateUUID();
+        stmt.run(
+          id,
+          category.name,
+          category.color || null,
+          now,
+          now
+        );
+        results.push({
+          id,
+          name: category.name,
+          color: category.color || null,
+          createdAt: new Date(now),
+          updatedAt: new Date(now)
+        });
+      }
+      
+      return results;
+    });
+    
+    return transaction(data);
+  } catch (error) {
+    console.error('Error creating categories:', error);
+    throw error;
+  }
+}
+
 export async function updateCategory(id: string, data: CategoryUpdateInput): Promise<Category> {
   try {
     // First check if category exists

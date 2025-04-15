@@ -14,6 +14,8 @@ import {
   SelectValue 
 } from '../ui/select'
 import { Button } from '../ui/button'
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group'
+import { Label } from '../ui/label'
 
 interface ColumnMapperProps {
   open: boolean
@@ -28,6 +30,7 @@ export interface ColumnMapping {
   descriptionColumn: string
   detailsColumn?: string
   amountColumn: string
+  dateFormat: 'UK' | 'US'
 }
 
 function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: ColumnMapperProps) {
@@ -35,7 +38,8 @@ function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: Colum
     dateColumn: '',
     descriptionColumn: '',
     detailsColumn: '',
-    amountColumn: ''
+    amountColumn: '',
+    dateFormat: 'UK'
   })
 
   // Try to auto-detect columns based on common patterns
@@ -62,7 +66,8 @@ function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: Colum
       dateColumn: possibleDateColumns[0] || columns[0],
       descriptionColumn: possibleDescriptionColumns[0] || columns[1] || columns[0],
       detailsColumn: possibleDetailsColumns[0] || '',
-      amountColumn: possibleAmountColumns[0] || columns[2] || columns[0]
+      amountColumn: possibleAmountColumns[0] || columns[2] || columns[0],
+      dateFormat: 'UK'
     })
   }, [columns])
 
@@ -188,6 +193,28 @@ function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: Colum
               </Select>
             </div>
           </div>
+          
+          <div className="grid grid-cols-4 items-center gap-4">
+            <label htmlFor="date-format" className="text-right text-sm font-medium">
+              Date Format
+            </label>
+            <div className="col-span-3">
+              <RadioGroup
+                value={mapping.dateFormat}
+                onValueChange={(value: 'UK' | 'US') => handleSelectChange(value, 'dateFormat')}
+                className="flex gap-4"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="UK" id="uk-format" />
+                  <Label htmlFor="uk-format">DD/MM/YYYY (UK)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="US" id="us-format" />
+                  <Label htmlFor="us-format">MM/DD/YYYY (US)</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
         </div>
 
         {/* Preview section */}
@@ -207,7 +234,7 @@ function ColumnMapper({ open, onOpenChange, columns, onColumnsMap, data }: Colum
                 <tbody>
                   {preview.map((row, i) => (
                     <tr key={i} className="border-b border-dashed">
-                      <td className="p-1">{String(row.date)}</td>
+                      <td className="p-1">{String(row.date)} ({mapping.dateFormat} format)</td>
                       <td className="p-1">{String(row.description)}</td>
                       <td className="p-1">{row.details ? String(row.details) : "-"}</td>
                       <td className="p-1 text-right">{String(row.amount)}</td>

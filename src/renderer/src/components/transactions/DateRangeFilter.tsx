@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils'
 import { DateRange } from '../../stores/filterStore'
 import { useFilterStore } from '../../stores'
 import { DateRange as DayPickerDateRange } from 'react-day-picker'
+import { formatDate } from '../../lib/format'
 
 interface DateRangeFilterProps {
   onClose?: () => void
@@ -64,10 +65,10 @@ export function DateRangeFilter({ onClose, inSheet = true }: DateRangeFilterProp
             {date?.from ? (
               date.to ? (
                 <>
-                  {format(date.from, "MMM d, yyyy")} - {format(date.to, "MMM d, yyyy")}
+                  {formatDate(date.from)} - {formatDate(date.to)}
                 </>
               ) : (
-                format(date.from, "MMM d, yyyy")
+                formatDate(date.from)
               )
             ) : (
               <span>Select date range</span>

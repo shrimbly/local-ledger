@@ -17,6 +17,7 @@ import { updateTransaction } from '../../services/transactionService'
 import { Category, TransactionUpdateInput } from '../../lib/types'
 import { format } from 'date-fns'
 import { createRuleSuggestionFromTransaction, createCategorizationRule } from '../../services/categorizationRuleService'
+import { formatDate } from '@renderer/lib/format'
 
 interface CategoryInfo {
   id: string
@@ -319,7 +320,7 @@ export function TransactionDetailView({
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, "PPP") : <span>Select a date</span>}
+                      {date ? formatDate(date) : <span>Select a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">

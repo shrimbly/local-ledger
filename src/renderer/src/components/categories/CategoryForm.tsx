@@ -5,6 +5,26 @@ import { Label } from '../ui/label'
 import { Category, CategoryCreateInput, CategoryUpdateInput } from '../../lib/types'
 import { createCategory, updateCategory } from '../../services/categoryService'
 
+// Nice color palette for random assignment
+const COLOR_PALETTE = [
+  '#4CAF50', // Green
+  '#2196F3', // Blue
+  '#FF5722', // Deep Orange
+  '#9C27B0', // Purple
+  '#E91E63', // Pink
+  '#FFEB3B', // Yellow
+  '#00BCD4', // Cyan
+  '#FF9800', // Orange
+  '#607D8B', // Blue Grey
+  '#8BC34A', // Light Green
+  '#673AB7', // Deep Purple
+  '#FFC107', // Amber
+  '#3F51B5', // Indigo
+  '#795548', // Brown
+  '#009688', // Teal
+  '#CDDC39', // Lime
+];
+
 interface CategoryFormProps {
   category: Category | null
   onSave: () => void
@@ -17,6 +37,11 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Get a random color from the palette
+  const getRandomColor = (): string => {
+    return COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)];
+  };
+
   // Set initial values when editing an existing category
   useEffect(() => {
     if (category) {
@@ -25,7 +50,7 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
     } else {
       // Reset form when adding a new category
       setName('')
-      setColor('#3b82f6')
+      setColor(getRandomColor())
     }
   }, [category])
 
@@ -97,6 +122,21 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
             className="flex-1"
             disabled={isSubmitting}
           />
+        </div>
+        
+        <div className="mt-2">
+          <Label className="text-sm mb-1">Quick Colors</Label>
+          <div className="flex flex-wrap gap-2 mt-1">
+            {COLOR_PALETTE.map((paletteColor, index) => (
+              <div 
+                key={index}
+                className={`w-6 h-6 rounded-full cursor-pointer hover:ring-2 hover:ring-offset-1 ${color === paletteColor ? 'ring-2 ring-offset-1 ring-primary' : ''}`}
+                style={{ backgroundColor: paletteColor }}
+                onClick={() => setColor(paletteColor)}
+                title={paletteColor}
+              />
+            ))}
+          </div>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware'
 import { Transaction } from '../lib/types'
 import { devtools } from 'zustand/middleware'
 import { useShallow } from 'zustand/react/shallow'
+import { formatDate } from '../lib/format'
 
 // Types for filter parameters
 export interface DateRange {
@@ -211,19 +212,14 @@ export const useFilterStore = create<FilterState>()(
           if (filters.dateRange.from || filters.dateRange.to) {
             let dateRange = 'Date: '
             if (filters.dateRange.from) {
-              dateRange += new Date(filters.dateRange.from).toLocaleDateString()
-            } else {
-              dateRange += 'Any'
+              dateRange += formatDate(filters.dateRange.from)
             }
-            
-            dateRange += ' to '
-            
+            if (filters.dateRange.from && filters.dateRange.to) {
+              dateRange += ' - '
+            }
             if (filters.dateRange.to) {
-              dateRange += new Date(filters.dateRange.to).toLocaleDateString()
-            } else {
-              dateRange += 'Any'
+              dateRange += formatDate(filters.dateRange.to)
             }
-            
             parts.push(dateRange)
           }
           

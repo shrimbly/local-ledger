@@ -15,6 +15,7 @@ import { useFilterStore, useCategoryStore } from '../../stores'
 import { TransactionFilters } from '../../stores/filterStore'
 import { Label } from '../ui/label'
 import { Form, FormField, FormItem, FormControl } from '../ui/form'
+import { formatDate } from '../../lib/format'
 
 interface TransactionTableProps {
   transactions: Transaction[]
@@ -220,7 +221,7 @@ function TransactionTable({
                 </TableCell>
               )}
               <TableCell className="font-medium">
-                {new Date(transaction.date).toLocaleDateString()}
+                {formatDate(transaction.date)}
               </TableCell>
               <TableCell>{transaction.description}</TableCell>
               <TableCell>{transaction.details || '-'}</TableCell>

@@ -30,6 +30,7 @@ import {
   getAllCategories,
   getCategoryById,
   createCategory,
+  createCategories,
   updateCategory,
   deleteCategory,
   initDatabase,
@@ -179,6 +180,15 @@ function setupIPC(): void {
       return await createCategory(data)
     } catch (error) {
       console.error('Error creating category:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('create-categories', async (_, data: CategoryCreateInput[]) => {
+    try {
+      return await createCategories(data)
+    } catch (error) {
+      console.error('Error creating categories:', error)
       throw error
     }
   })

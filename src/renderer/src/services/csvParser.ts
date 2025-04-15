@@ -18,6 +18,51 @@ export interface TransactionData {
 }
 
 /**
+ * Parse a date string using a specific format
+ */
+function parseDate(dateValue: string, format: 'UK' | 'US'): Date {
+  // Split the date string by common separators
+  const dateParts = dateValue.split(/[\/.-]/)
+  
+  if (dateParts.length !== 3) {
+    throw new Error(`Invalid date format: ${dateValue}`)
+  }
+
+  let day: number, month: number, year: number
+
+  if (format === 'UK') {
+    // DD/MM/YYYY
+    day = parseInt(dateParts[0], 10)
+    month = parseInt(dateParts[1], 10) - 1 // JavaScript months are 0-based
+    year = parseInt(dateParts[2], 10)
+  } else {
+    // MM/DD/YYYY
+    month = parseInt(dateParts[0], 10) - 1
+    day = parseInt(dateParts[1], 10)
+    year = parseInt(dateParts[2], 10)
+  }
+
+  // Validate the parts
+  if (isNaN(day) || isNaN(month) || isNaN(year)) {
+    throw new Error(`Invalid date components: ${dateValue}`)
+  }
+
+  // Create and validate the date
+  const date = new Date(year, month, day)
+  if (isNaN(date.getTime())) {
+    throw new Error(`Invalid date: ${dateValue}`)
+  }
+
+  // Verify the date components match what we set
+  // This catches invalid dates like 31/02/2024
+  if (date.getDate() !== day || date.getMonth() !== month || date.getFullYear() !== year) {
+    throw new Error(`Invalid date: ${dateValue}`)
+  }
+
+  return date
+}
+
+/**
  * Parses a CSV file and returns the data with column headers
  */
 export function parseCSVFile(file: File): Promise<ParseResult> {
@@ -66,6 +111,7 @@ export function mapCSVToTransactions(
     descriptionColumn: string
     detailsColumn?: string
     amountColumn: string
+    dateFormat: 'UK' | 'US'
   },
   fileName: string
 ): TransactionData[] {
@@ -76,36 +122,13 @@ export function mapCSVToTransactions(
     const detailsValue = mappings.detailsColumn ? row[mappings.detailsColumn] : null
     const amountValue = row[mappings.amountColumn]
 
-    // Parse date - accept different formats
-    let date: Date = new Date() // Initialize with current date as fallback
+    // Parse date using specified format
+    let date: Date
     try {
-      // Try to parse as ISO date first
-      const isoDate = new Date(dateValue)
-      
-      // If ISO parsing works, use it
-      if (!isNaN(isoDate.getTime())) {
-        date = isoDate
-      } else {
-        // Try different formats (DD/MM/YYYY, MM/DD/YYYY)
-        const dateParts = dateValue.split(/[\/.-]/)
-        if (dateParts.length === 3) {
-          // Try DD/MM/YYYY first (UK format)
-          const ukDate = new Date(`${dateParts[1]}/${dateParts[0]}/${dateParts[2]}`)
-          
-          // If valid, use UK format
-          if (!isNaN(ukDate.getTime())) {
-            date = ukDate
-          } else {
-            // Try MM/DD/YYYY (US format)
-            const usDate = new Date(`${dateParts[0]}/${dateParts[1]}/${dateParts[2]}`)
-            if (!isNaN(usDate.getTime())) {
-              date = usDate
-            }
-          }
-        }
-      }
+      date = parseDate(String(dateValue), mappings.dateFormat)
     } catch (e) {
-      // Default to current date if any parsing fails (already initialized)
+      console.error(`Failed to parse date: ${dateValue}`, e)
+      date = new Date() // Fallback to current date
     }
 
     // Parse amount - handle different formats

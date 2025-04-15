@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { Plus } from 'lucide-react'
+import { Plus, List } from 'lucide-react'
 import { getAllCategories } from '../../services/categoryService'
 import { Category } from '../../lib/types'
 import { CategoryTable } from './CategoryTable'
 import { CategoryForm } from './CategoryForm'
+import { BulkCategoryForm } from './BulkCategoryForm'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 
 export function CategoriesView() {
@@ -12,6 +13,7 @@ export function CategoriesView() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
 
   // Fetch categories on component mount
@@ -39,6 +41,10 @@ export function CategoriesView() {
     setDialogOpen(true)
   }
 
+  const handleBulkAddClick = () => {
+    setBulkDialogOpen(true)
+  }
+
   const handleEditClick = (category: Category) => {
     setEditingCategory(category)
     setDialogOpen(true)
@@ -47,16 +53,23 @@ export function CategoriesView() {
   const handleCategoryChange = () => {
     fetchCategories()
     setDialogOpen(false)
+    setBulkDialogOpen(false)
   }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-800">Categories</h2>
-        <Button onClick={handleAddClick}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Category
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={handleAddClick}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Category
+          </Button>
+          <Button variant="outline" onClick={handleBulkAddClick}>
+            <List className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -83,6 +96,18 @@ export function CategoriesView() {
             category={editingCategory}
             onSave={handleCategoryChange}
             onCancel={() => setDialogOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Bulk Add Categories</DialogTitle>
+          </DialogHeader>
+          <BulkCategoryForm 
+            onComplete={handleCategoryChange}
+            onCancel={() => setBulkDialogOpen(false)}
           />
         </DialogContent>
       </Dialog>
