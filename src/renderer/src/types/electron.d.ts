@@ -1,3 +1,6 @@
+// Import types to use in the declarations
+import { GeminiResponse, GeminiCategorySuggestion } from '../lib/types'
+
 interface ElectronAPI {
   // Add any Electron API methods here
 }
@@ -34,6 +37,19 @@ interface DatabaseAPI {
   
   // Database management
   clearDatabase: () => Promise<boolean>
+  
+  // Gemini methods
+  gemini: {
+    initialize: () => Promise<boolean>
+    isInitialized: () => Promise<boolean>
+    suggestCategory: (
+      description: string, 
+      amount: number,
+      details?: string,
+      existingCategories?: string[]
+    ) => Promise<GeminiResponse<GeminiCategorySuggestion[]>>
+    analyzeTransactions: (transactions: any[]) => Promise<any>
+  }
 }
 
 declare global {

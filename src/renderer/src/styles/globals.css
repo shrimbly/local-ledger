@@ -135,4 +135,27 @@
   .rdp-day_range_middle {
     @apply bg-primary/20 text-foreground;
   }
+  
+  /* Category Wizard UI Enhancements */
+  .category-suggestion {
+    @apply transition-all duration-150 ease-in-out;
+  }
+  
+  .category-suggestion:hover {
+    @apply transform scale-[1.02] shadow-sm;
+  }
+  
+  .category-suggestion:active {
+    @apply transform scale-[0.98];
+  }
+  
+  /* Animated progress bar */
+  .progress-animate-value {
+    animation: progress-animate 1s ease-out forwards;
+  }
+  
+  @keyframes progress-animate {
+    from { width: 0; }
+    to { width: 100%; }
+  }
 } 

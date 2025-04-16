@@ -1,6 +1,6 @@
 import { useEffect, ReactNode, useState } from 'react'
 import { Button } from '../ui/button'
-import { Plus, Pencil, Trash2, Tag, Check, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Tag, Check, X, Wand2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import {
   Popover,
@@ -33,6 +33,7 @@ import {
   deleteTransaction 
 } from '../../services/transactionService'
 import { createCategorizationRule, createRuleSuggestionFromTransaction } from '../../services/categorizationRuleService'
+import { CategoryWizard } from '../wizard/CategoryWizard'
 
 export function TransactionsView() {
   // Transaction store state & actions
@@ -78,6 +79,9 @@ export function TransactionsView() {
 
   // Add state for selected transaction
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null)
+
+  // Add state for wizard
+  const [isWizardOpen, setIsWizardOpen] = useState(false)
 
   // Initialize data on component mount
   useEffect(() => {
@@ -252,6 +256,10 @@ export function TransactionsView() {
       }
     }
   }
+
+  // Handle wizard open/close
+  const handleOpenWizard = () => setIsWizardOpen(true)
+  const handleCloseWizard = () => setIsWizardOpen(false)
 
   // Render pagination controls
   const renderPagination = () => {
@@ -490,10 +498,16 @@ export function TransactionsView() {
         <>
           <div className="mb-6 flex justify-between items-center">
             <h1 className="text-2xl font-bold">Transactions</h1>
-            <Button onClick={handleAddClick}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Transaction
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleOpenWizard}>
+                <Wand2 className="w-4 h-4 mr-2" />
+                AI Categorization
+              </Button>
+              <Button onClick={handleAddClick}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Transaction
+              </Button>
+            </div>
           </div>
           
           <TransactionFilters className="mb-4" />
@@ -545,6 +559,11 @@ export function TransactionsView() {
       )}
       
       {renderDialogs()}
+      
+      <CategoryWizard 
+        isOpen={isWizardOpen}
+        onClose={handleCloseWizard}
+      />
     </div>
   )
 }

@@ -9,6 +9,8 @@ import fs from 'fs'
 import { KeytarService, ApiKeyType } from './keytar-service'
 // Import Gemini service
 import { GeminiService } from './gemini-service'
+// Import wizard service
+import { wizardService } from './wizard-service'
 
 // Set NODE_ENV for development/production detection
 process.env.NODE_ENV = is.dev ? 'development' : 'production';
@@ -42,7 +44,9 @@ import {
   createCategorizationRule,
   updateCategorizationRule,
   deleteCategorizationRule,
-  applyCategorizationRules
+  applyCategorizationRules,
+  getUncategorizedTransactions,
+  getUncategorizedTransactionsCount
 } from './database'
 
 // Import types
@@ -100,8 +104,11 @@ function createWindow(): void {
 
 // Set up IPC handlers for database operations
 function setupIPC(): void {
+  console.log('[IPC] Setting up IPC handlers...')
+
   // Transaction handlers
   ipcMain.handle('get-transactions', async () => {
+    console.log('[IPC] Handling get-transactions request')
     try {
       return await getAllTransactions()
     } catch (error) {
@@ -289,6 +296,7 @@ function setupIPC(): void {
 
   // Gemini API handlers
   ipcMain.handle('gemini:initialize', async () => {
+    console.log('[IPC] Handling gemini:initialize request')
     try {
       return await GeminiService.initialize()
     } catch (error) {
@@ -298,10 +306,12 @@ function setupIPC(): void {
   })
 
   ipcMain.handle('gemini:is-initialized', () => {
+    console.log('[IPC] Handling gemini:is-initialized request')
     return GeminiService.isInitialized()
   })
 
   ipcMain.handle('gemini:suggest-category', async (_, description: string, amount: number, details?: string, existingCategories?: string[]) => {
+    console.log('[IPC] Handling gemini:suggest-category request for:', description)
     try {
       return await GeminiService.suggestCategory(description, amount, details, existingCategories)
     } catch (error) {
@@ -318,6 +328,46 @@ function setupIPC(): void {
       throw error
     }
   })
+
+  // Wizard handlers for direct access (without wizard: prefix)
+  ipcMain.handle('get-uncategorized-transactions', async () => {
+    try {
+      // Use the wizardService instead of calling the database function directly
+      return await wizardService.getUncategorizedTransactions()
+    } catch (error) {
+      console.error('Error getting uncategorized transactions:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('get-uncategorized-count', async () => {
+    try {
+      // Use the wizardService instead of calling the database function directly
+      return await wizardService.getUncategorizedCount()
+    } catch (error) {
+      console.error('Error getting uncategorized count:', error)
+      throw error
+    }
+  })
+
+  // Add handlers for the wizard-specific endpoints
+  ipcMain.handle('wizard:saveTransactionCategory', async (_, transactionId: string, categoryId: string | null) => {
+    try {
+      return await wizardService.saveTransactionCategory(transactionId, categoryId)
+    } catch (error) {
+      console.error('Error saving transaction category:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('wizard:skipTransaction', async (_, transactionId: string) => {
+    try {
+      return await wizardService.skipTransaction(transactionId)
+    } catch (error) {
+      console.error('Error skipping transaction:', error)
+      throw error
+    }
+  })
 }
 
 // This method will be called when Electron has finished
@@ -331,9 +381,6 @@ app.whenReady().then(async () => {
   } catch (error) {
     console.error('Failed to initialize database:', error)
   }
-
-  // Set up IPC handlers for database operations
-  setupIPC()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')

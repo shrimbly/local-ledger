@@ -1,3 +1,5 @@
+import { GeminiResponse, GeminiCategorySuggestion } from '../lib/types';
+
 /**
  * Service for interacting with Google Gemini API
  */
@@ -34,14 +36,14 @@ export const geminiService = {
    * @param amount Transaction amount
    * @param details Optional additional transaction details
    * @param existingCategories Optional array of existing category names
-   * @returns Promise resolving to the suggested category name
+   * @returns Promise resolving to the response with suggested categories
    */
   async suggestCategory(
     description: string,
     amount: number,
     details?: string,
     existingCategories?: string[]
-  ): Promise<string | null> {
+  ): Promise<GeminiResponse<GeminiCategorySuggestion[]>> {
     try {
       // First check if the client is initialized, if not initialize it
       const isInitialized = await this.isInitialized();
@@ -49,7 +51,13 @@ export const geminiService = {
         const success = await this.initialize();
         if (!success) {
           console.error('Failed to initialize Gemini API client');
-          return null;
+          return {
+            success: false,
+            error: {
+              code: 'GEMINI_NOT_INITIALIZED',
+              message: 'Failed to initialize Gemini API client'
+            }
+          };
         }
       }
 
@@ -61,7 +69,14 @@ export const geminiService = {
       );
     } catch (error) {
       console.error('Error suggesting category:', error);
-      return null;
+      return {
+        success: false,
+        error: {
+          code: 'UNKNOWN_ERROR',
+          message: 'Error suggesting category',
+          details: error
+        }
+      };
     }
   },
 
@@ -88,4 +103,4 @@ export const geminiService = {
       return null;
     }
   }
-}; 
+};

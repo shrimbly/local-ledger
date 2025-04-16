@@ -12,6 +12,8 @@ export interface Transaction {
   category?: Category | null
   createdAt: Date | string
   updatedAt: Date | string
+  isSkipped?: boolean
+  reviewedAt?: Date | null
 }
 
 export interface Category {
@@ -41,11 +43,13 @@ export interface CategorizationRule {
 export interface TransactionCreateInput {
   date: Date
   description: string
-  details?: string
+  details?: string | null
   amount: number
   isUnexpected?: boolean
-  sourceFile?: string
-  categoryId?: string
+  sourceFile?: string | null
+  categoryId?: string | null
+  isSkipped?: boolean
+  reviewedAt?: Date | null
 }
 
 export type TransactionCreateInputArray = TransactionCreateInput | TransactionCreateInput[];
@@ -56,8 +60,10 @@ export interface TransactionUpdateInput {
   details?: string | null
   amount?: number
   isUnexpected?: boolean
-  sourceFile?: string
+  sourceFile?: string | null
   categoryId?: string | null
+  isSkipped?: boolean
+  reviewedAt?: string | null
 }
 
 export interface CategoryCreateInput {
@@ -86,4 +92,34 @@ export interface CategorizationRuleUpdateInput {
   priority?: number
   isEnabled?: boolean
   categoryId?: string
+}
+
+// Gemini API types
+export interface GeminiError {
+  message: string
+  details?: string
+  code?: ERROR_CODES
+}
+
+export interface GeminiResponse<T> {
+  success: boolean
+  data: T | null
+  error?: GeminiError
+}
+
+export interface GeminiCategorySuggestion {
+  category: string
+  confidence: number
+  reasoning: string
+}
+
+// Error codes for Gemini API
+export enum ERROR_CODES {
+  INITIALIZATION_FAILED = 'INITIALIZATION_FAILED',
+  API_ERROR = 'API_ERROR',
+  PARSE_ERROR = 'PARSE_ERROR',
+  INVALID_RESPONSE = 'INVALID_RESPONSE',
+  INVALID_INPUT = 'INVALID_INPUT',
+  NOT_INITIALIZED = 'NOT_INITIALIZED',
+  BATCH_PROCESSING = 'BATCH_PROCESSING'
 } 

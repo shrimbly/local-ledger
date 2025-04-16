@@ -55,6 +55,8 @@ function initTables() {
       isUnexpected INTEGER DEFAULT 0,
       sourceFile TEXT,
       categoryId TEXT,
+      isSkipped INTEGER DEFAULT 0,
+      reviewedAt TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL,
       FOREIGN KEY (categoryId) REFERENCES Categories(id)
@@ -94,6 +96,7 @@ function initTables() {
     CREATE INDEX IF NOT EXISTS idx_transaction_categoryId ON Transactions(categoryId);
     CREATE INDEX IF NOT EXISTS idx_rule_categoryId ON CategorizationRules(categoryId);
     CREATE INDEX IF NOT EXISTS idx_rule_isEnabled ON CategorizationRules(isEnabled);
+    CREATE INDEX IF NOT EXISTS idx_uncategorized_transactions ON Transactions(categoryId, date DESC) WHERE categoryId IS NULL;
   `);
   
   // Run migrations
@@ -137,6 +140,21 @@ function migrateDatabase() {
         CREATE INDEX IF NOT EXISTS idx_rule_categoryId ON CategorizationRules(categoryId);
         CREATE INDEX IF NOT EXISTS idx_rule_isEnabled ON CategorizationRules(isEnabled);
       `);
+    }
+
+    // Check and add new transaction columns
+    const transactionInfo = db.prepare("PRAGMA table_info(Transactions)").all();
+    const hasIsSkipped = transactionInfo.some(column => column.name === 'isSkipped');
+    const hasReviewedAt = transactionInfo.some(column => column.name === 'reviewedAt');
+
+    if (!hasIsSkipped) {
+      console.log('Migrating Transactions table: adding isSkipped column');
+      db.exec('ALTER TABLE Transactions ADD COLUMN isSkipped INTEGER DEFAULT 0');
+    }
+
+    if (!hasReviewedAt) {
+      console.log('Migrating Transactions table: adding reviewedAt column');
+      db.exec('ALTER TABLE Transactions ADD COLUMN reviewedAt TEXT');
     }
   } catch (error) {
     console.error('Error during database migration:', error);
@@ -187,6 +205,8 @@ function rowToTransaction(row: any): Transaction {
     ...row,
     date: new Date(row.date),
     isUnexpected: !!row.isUnexpected, // Convert to boolean
+    isSkipped: !!row.isSkipped, // Convert to boolean
+    reviewedAt: row.reviewedAt ? new Date(row.reviewedAt) : null,
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
     // Don't try to fetch category here - it will be handled separately if needed
@@ -265,6 +285,38 @@ export async function getAllTransactions(): Promise<Transaction[]> {
   }
 }
 
+// Get all uncategorized transactions
+export async function getUncategorizedTransactions(): Promise<Transaction[]> {
+  try {
+    // Query transactions with no categoryId, ordered by date descending
+    const rows = db.prepare(`
+      SELECT * FROM Transactions 
+      WHERE categoryId IS NULL 
+      ORDER BY date DESC
+    `).all();
+    
+    // Convert rows to Transaction objects
+    const transactions = rows.map(rowToTransaction);
+    
+    console.log(`Found ${transactions.length} uncategorized transactions`);
+    return transactions;
+  } catch (error) {
+    console.error('Error getting uncategorized transactions:', error);
+    throw error;
+  }
+}
+
+// Get count of uncategorized transactions
+export async function getUncategorizedTransactionsCount(): Promise<number> {
+  try {
+    const result = db.prepare('SELECT COUNT(*) as count FROM Transactions WHERE categoryId IS NULL').get();
+    return result.count;
+  } catch (error) {
+    console.error('Error getting uncategorized transactions count:', error);
+    throw error;
+  }
+}
+
 export async function getTransactionById(id: string): Promise<Transaction | null> {
   try {
     const row = db.prepare('SELECT * FROM Transactions WHERE id = ?').get(id);
@@ -299,8 +351,8 @@ export async function createTransaction(data: TransactionCreateInput): Promise<T
     console.log('Creating transaction:', { id, ...data });
     
     const stmt = db.prepare(`
-      INSERT INTO Transactions (id, date, description, details, amount, isUnexpected, sourceFile, categoryId, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO Transactions (id, date, description, details, amount, isUnexpected, sourceFile, categoryId, isSkipped, reviewedAt, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run(
@@ -312,6 +364,8 @@ export async function createTransaction(data: TransactionCreateInput): Promise<T
       data.isUnexpected ? 1 : 0,
       data.sourceFile || null,
       data.categoryId || null,
+      data.isSkipped ? 1 : 0,
+      data.reviewedAt || null,
       now,
       now
     );
@@ -388,6 +442,16 @@ export async function updateTransaction(id: string, data: TransactionUpdateInput
     if (data.categoryId !== undefined) {
       updates.push('categoryId = ?');
       params.push(data.categoryId);
+    }
+    
+    if (data.isSkipped !== undefined) {
+      updates.push('isSkipped = ?');
+      params.push(data.isSkipped ? 1 : 0);
+    }
+    
+    if (data.reviewedAt !== undefined) {
+      updates.push('reviewedAt = ?');
+      params.push(data.reviewedAt || null);
     }
     
     // Add updatedAt
@@ -810,6 +874,37 @@ export async function applyCategorizationRules(transaction: Transaction): Promis
   }
 }
 
+// Begin a transaction and return a transaction wrapper
+export function beginTransaction() {
+  try {
+    db.prepare('BEGIN TRANSACTION').run();
+    return {
+      commit: () => {
+        try {
+          db.prepare('COMMIT').run();
+          return true;
+        } catch (error) {
+          console.error('Error committing transaction:', error);
+          db.prepare('ROLLBACK').run();
+          return false;
+        }
+      },
+      rollback: () => {
+        try {
+          db.prepare('ROLLBACK').run();
+          return true;
+        } catch (error) {
+          console.error('Error rolling back transaction:', error);
+          return false;
+        }
+      }
+    };
+  } catch (error) {
+    console.error('Error beginning transaction:', error);
+    throw error;
+  }
+}
+
 // Export the database instance for direct access if needed
 export default db; 
 
@@ -825,5 +920,114 @@ export async function clearDatabase(): Promise<boolean> {
   } catch (error) {
     console.error('Error clearing database:', error);
     return false;
+  }
+}
+
+// Batch update transactions with prepared statements
+export function batchUpdateTransactions(updates: { id: number; category: string }[]) {
+  const transaction = beginTransaction();
+  try {
+    const stmt = db.prepare(`
+      UPDATE transactions 
+      SET category = ?, 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ?
+    `);
+
+    const results = updates.map(update => {
+      try {
+        return {
+          success: true,
+          id: update.id,
+          result: stmt.run(update.category, update.id)
+        };
+      } catch (error) {
+        console.error(`Error updating transaction ${update.id}:`, error);
+        return {
+          success: false,
+          id: update.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        };
+      }
+    });
+
+    // Only commit if all updates were successful
+    const hasErrors = results.some(r => !r.success);
+    if (hasErrors) {
+      transaction.rollback();
+      return {
+        success: false,
+        results
+      };
+    }
+
+    const committed = transaction.commit();
+    return {
+      success: committed,
+      results: committed ? results : results.map(r => ({ ...r, success: false }))
+    };
+  } catch (error) {
+    transaction.rollback();
+    console.error('Error in batch update:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      results: []
+    };
+  }
+}
+
+// Get uncategorized transactions in batches
+export function getUncategorizedTransactionBatch(batchSize: number = 10) {
+  const stmt = db.prepare(`
+    SELECT id, date, description, amount, details
+    FROM transactions 
+    WHERE category IS NULL OR category = ''
+    LIMIT ?
+  `);
+  
+  return stmt.all(batchSize) as Transaction[];
+}
+
+// Process batch suggestions and update transactions
+export async function processBatchSuggestions(
+  geminiService: any,
+  batchSize: number = 10
+): Promise<{
+  success: boolean;
+  processed: number;
+  errors?: string[];
+}> {
+  try {
+    const batch = getUncategorizedTransactionBatch(batchSize);
+    if (batch.length === 0) {
+      return { success: true, processed: 0 };
+    }
+
+    const suggestions = await geminiService.batchProcessTransactions(batch);
+    if (!suggestions || !Array.isArray(suggestions)) {
+      throw new Error('Invalid suggestions received from Gemini service');
+    }
+
+    const updates = suggestions.map((suggestion, index) => ({
+      id: Number(batch[index].id),
+      category: suggestion.category as string
+    }));
+
+    const result = batchUpdateTransactions(updates);
+    return {
+      success: result.success,
+      processed: result.success ? updates.length : 0,
+      errors: result.success ? undefined : result.results
+        .filter(r => !r.success)
+        .map(r => `Transaction ${r.id}: ${r.error}`)
+    };
+  } catch (error) {
+    console.error('Error processing batch suggestions:', error);
+    return {
+      success: false,
+      processed: 0,
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    };
   }
 } 

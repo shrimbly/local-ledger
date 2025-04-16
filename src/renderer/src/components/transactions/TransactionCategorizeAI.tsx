@@ -6,6 +6,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '../ui/card
 import { Badge } from '../ui/badge'
 import { Loader2Icon, CheckIcon, XIcon, WandIcon, PlusIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { GeminiResponse, GeminiCategorySuggestion } from '@renderer/lib/types'
 
 interface TransactionCategorizeAIProps {
   transaction: {
@@ -78,19 +79,21 @@ export function TransactionCategorizeAI({
       // Get category names for suggestions
       const categoryNames = existingCategories.map(c => c.name)
       
-      const result = await geminiService.suggestCategory(
+      const response = await geminiService.suggestCategory(
         transaction.description,
         transaction.amount,
         transaction.details,
         categoryNames
       )
       
-      if (result) {
-        setSuggestion(result)
+      if (response && response.success && response.data && response.data.length > 0) {
+        // Use the top suggestion (highest confidence)
+        const topSuggestion = response.data[0];
+        setSuggestion(topSuggestion.category);
         
         // Check if this matches an existing category
         const match = existingCategories.find(
-          c => c.name.toLowerCase() === result.toLowerCase()
+          c => c.name.toLowerCase() === topSuggestion.category.toLowerCase()
         )
         
         if (match) {

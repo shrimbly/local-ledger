@@ -1,15 +1,28 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
+// Helper function for logging IPC calls
+const loggedInvoke = async (channel: string, ...args: any[]) => {
+  console.log(`[IPC-Renderer] Calling ${channel} with:`, ...args)
+  try {
+    const result = await ipcRenderer.invoke(channel, ...args)
+    console.log(`[IPC-Renderer] ${channel} response:`, result)
+    return result
+  } catch (error) {
+    console.error(`[IPC-Renderer] Error in ${channel}:`, error)
+    throw error
+  }
+}
+
 // Custom APIs for renderer
 const api = {
   // Transaction methods
   transactions: {
-    getAll: () => ipcRenderer.invoke('get-transactions'),
-    getById: (id: string) => ipcRenderer.invoke('get-transaction', id),
-    create: (data: any) => ipcRenderer.invoke('create-transaction', data),
-    update: (id: string, data: any) => ipcRenderer.invoke('update-transaction', id, data),
-    delete: (id: string) => ipcRenderer.invoke('delete-transaction', id)
+    getAll: () => loggedInvoke('get-transactions'),
+    getById: (id: string) => loggedInvoke('get-transaction', id),
+    create: (data: any) => loggedInvoke('create-transaction', data),
+    update: (id: string, data: any) => loggedInvoke('update-transaction', id, data),
+    delete: (id: string) => loggedInvoke('delete-transaction', id)
   },
   
   // Category methods
@@ -54,10 +67,10 @@ const api = {
   // Gemini API methods
   gemini: {
     // Initialize the Gemini client
-    initialize: () => ipcRenderer.invoke('gemini:initialize'),
+    initialize: () => loggedInvoke('gemini:initialize'),
     
     // Check if the Gemini client is initialized
-    isInitialized: () => ipcRenderer.invoke('gemini:is-initialized'),
+    isInitialized: () => loggedInvoke('gemini:is-initialized'),
     
     // Suggest a category for a transaction
     suggestCategory: (
@@ -65,10 +78,27 @@ const api = {
       amount: number, 
       details?: string, 
       existingCategories?: string[]
-    ) => ipcRenderer.invoke('gemini:suggest-category', description, amount, details, existingCategories),
+    ) => loggedInvoke('gemini:suggest-category', description, amount, details, existingCategories),
     
     // Analyze transactions for insights
-    analyzeTransactions: (transactions: any[]) => ipcRenderer.invoke('gemini:analyze-transactions', transactions)
+    analyzeTransactions: (transactions: any[]) => loggedInvoke('gemini:analyze-transactions', transactions)
+  },
+  
+  // Wizard methods
+  wizard: {
+    // Get uncategorized transactions
+    getUncategorizedTransactions: () => loggedInvoke('get-uncategorized-transactions'),
+    
+    // Get uncategorized transactions count
+    getUncategorizedCount: () => loggedInvoke('get-uncategorized-count'),
+    
+    // Save transaction category
+    saveTransactionCategory: (transactionId: string, categoryId: string | null) => 
+      loggedInvoke('wizard:saveTransactionCategory', transactionId, categoryId),
+      
+    // Skip transaction
+    skipTransaction: (transactionId: string) =>
+      loggedInvoke('wizard:skipTransaction', transactionId)
   }
 }
 

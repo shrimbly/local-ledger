@@ -90,4 +90,29 @@ export interface CategorizationRuleUpdateInput {
   priority?: number
   isEnabled?: boolean
   categoryId?: string
-} 
+}
+
+export interface CategorySuggestion {
+  category: string
+  confidence: number
+  explanation?: string
+}
+
+// Gemini API response types
+export interface GeminiError {
+  code: string
+  message: string
+  details?: any
+}
+
+export interface GeminiResponse<T> {
+  success: boolean
+  data?: T
+  error?: GeminiError
+}
+
+export interface GeminiCategorySuggestion {
+  category: string
+  confidence: number
+  reasoning: string
+}
