@@ -307,8 +307,8 @@ Spending Breakdown by Category (Sorted by amount):
       if (summaryData.expenseBreakdown.length > 0) {
         summaryData.expenseBreakdown.forEach(cat => {
           const spendingTypeLabel = cat.spendingType ? ` [${cat.spendingType}]` : '';
-          const descriptionText = cat.description ? ` - ${cat.description}` : '';
-          prompt += `* ${cat.name}${spendingTypeLabel}: ${formatCurrency(cat.amount)} (${cat.percentage.toFixed(1)}%)${descriptionText}\n`;
+          const descriptionText = cat.description ? ` (${cat.description})` : ''; 
+          prompt += `* ${cat.name}${descriptionText}${spendingTypeLabel}: ${formatCurrency(cat.amount)} (${cat.percentage.toFixed(1)}%)\n`;
         });
       } else {
         prompt += `* No categorized expenses found for this period.\n`;

@@ -34,7 +34,18 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           return
         }
         
-        const isInitialized = await geminiService.isInitialized()
+        // Try to initialize if not already initialized
+        let isInitialized = await geminiService.isInitialized()
+        
+        // If not initialized, explicitly try to initialize
+        if (!isInitialized) {
+          console.log('Gemini API not initialized, attempting to initialize...')
+          await geminiService.initialize()
+          
+          // Check again after initialization attempt
+          isInitialized = await geminiService.isInitialized()
+        }
+        
         setApiStatus(isInitialized ? 'initialized' : 'not-configured')
       } catch (err) {
         console.error('Error checking API status:', err)
@@ -106,6 +117,20 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       
       // Try to get AI insights using the new summary data
       try {
+        // Force recheck of API status
+        if (apiStatus !== 'initialized') {
+          const isInitialized = await geminiService.isInitialized()
+          if (!isInitialized) {
+            await geminiService.initialize()
+            // If still not initialized after trying, use the fallback
+            if (!(await geminiService.isInitialized())) {
+              throw new Error('Unable to initialize Gemini API')
+            }
+          }
+          // Update status if now initialized
+          setApiStatus('initialized')
+        }
+        
         // Get insights from Gemini API, passing the structured summary
         const result = await Promise.race([
           // Cast summaryData to any to bypass strict type checking for IPC call temporarily
@@ -187,7 +212,11 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           remarkPlugins={[remarkGfm]}
           components={{
             p: ({node, ...props}) => <p className="mb-4" {...props} />,
-            h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />
+            h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
+            // Add explicit styling for lists and list items (removed 'ordered' from props)
+            ul: ({node, ...props}) => <ul className="list-disc space-y-1 pl-4 mb-4" {...props} />,
+            ol: ({node, ...props}) => <ol className="list-decimal space-y-1 pl-4 mb-4" {...props} />,
+            li: ({node, ...props}) => <li className="ml-4" {...props} />
           }}
         >
           {insights}
@@ -203,7 +232,9 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
         <Alert className="mt-4">
           <RefreshCw className="h-4 w-4 animate-spin" />
           <AlertTitle>Checking Gemini API status...</AlertTitle>
-          <AlertDescription>Please wait while we check your API configuration.</AlertDescription>
+          <AlertDescription>
+            Please wait while we connect to the Gemini API. This should only take a moment.
+          </AlertDescription>
         </Alert>
       )
     }
@@ -215,6 +246,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           <AlertTitle>Gemini API Not Configured</AlertTitle>
           <AlertDescription>
             To use AI-powered insights, you need to configure your Gemini API key in Settings.
+            If you've already added an API key, please check that it is valid.
           </AlertDescription>
         </Alert>
       )

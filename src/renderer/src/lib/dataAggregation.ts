@@ -57,6 +57,12 @@ interface AiAnalysisDataSummary {
     amount: number;
     category?: string;
   };
+  spendingTypeBreakdown: {
+    essential: { amount: number, percentage: number },
+    discretionary: { amount: number, percentage: number },
+    mixed: { amount: number, percentage: number },
+    unclassified: { amount: number, percentage: number }
+  };
 }
 
 /**
@@ -271,6 +277,14 @@ export function aggregateDataForAi(
   let largestExpenseTransaction: Transaction | null = null
   let uncategorizedAmount = 0
   let uncategorizedCount = 0
+  
+  // Initialize spending type breakdowns
+  const spendingTypes = {
+    essential: 0,
+    discretionary: 0,
+    mixed: 0,
+    unclassified: 0
+  }
 
   const expensesByCategory: Record<string, { amount: number; count: number }> = {}
   // Optional: const incomeByCategory: Record<string, { amount: number; count: number }> = {}
@@ -293,9 +307,25 @@ export function aggregateDataForAi(
         }
         expensesByCategory[category.id].amount += absAmount
         expensesByCategory[category.id].count++
+        
+        // Track spending type
+        if (category.spendingType) {
+          if (category.spendingType === 'essential') {
+            spendingTypes.essential += absAmount
+          } else if (category.spendingType === 'discretionary') {
+            spendingTypes.discretionary += absAmount
+          } else if (category.spendingType === 'mixed') {
+            spendingTypes.mixed += absAmount
+          } else {
+            spendingTypes.unclassified += absAmount
+          }
+        } else {
+          spendingTypes.unclassified += absAmount
+        }
       } else {
         uncategorizedAmount += absAmount
         uncategorizedCount++
+        spendingTypes.unclassified += absAmount
       }
     } else {
       // Income
@@ -312,7 +342,9 @@ export function aggregateDataForAi(
         id: categoryId,
         name: category?.name || 'Unknown Category',
         amount: data.amount,
-        percentage: totalExpenses > 0 ? (data.amount / totalExpenses) * 100 : 0
+        percentage: totalExpenses > 0 ? (data.amount / totalExpenses) * 100 : 0,
+        description: category?.description,
+        spendingType: category?.spendingType
       }
     })
     .sort((a, b) => b.amount - a.amount) // Sort by amount descending
@@ -342,6 +374,26 @@ export function aggregateDataForAi(
     };
   }
 
+  // Calculate spending type percentages
+  const spendingTypeBreakdown = {
+    essential: { 
+      amount: spendingTypes.essential, 
+      percentage: totalExpenses > 0 ? (spendingTypes.essential / totalExpenses) * 100 : 0 
+    },
+    discretionary: { 
+      amount: spendingTypes.discretionary, 
+      percentage: totalExpenses > 0 ? (spendingTypes.discretionary / totalExpenses) * 100 : 0 
+    },
+    mixed: { 
+      amount: spendingTypes.mixed, 
+      percentage: totalExpenses > 0 ? (spendingTypes.mixed / totalExpenses) * 100 : 0 
+    },
+    unclassified: { 
+      amount: spendingTypes.unclassified, 
+      percentage: totalExpenses > 0 ? (spendingTypes.unclassified / totalExpenses) * 100 : 0 
+    }
+  };
+
   return {
     timePeriod: timePeriodText,
     totalIncome,
@@ -353,7 +405,8 @@ export function aggregateDataForAi(
       amount: uncategorizedAmount,
       count: uncategorizedCount
     },
-    largestExpense: largestExpenseDetail
+    largestExpense: largestExpenseDetail,
+    spendingTypeBreakdown
   }
 }
 
