@@ -14,7 +14,7 @@ function formatCurrency(value: number): string {
 }
 
 interface TransactionTrendsChartProps {
-  timeFilter?: 'all' | 'month' | 'year'
+  timeFilter?: 'all' | 'month' | 'year' | 'week'
 }
 
 // Update the interface to include index signature for string keys
@@ -41,27 +41,48 @@ export function TransactionTrendsChart({ timeFilter = 'month' }: TransactionTren
 
     const now = new Date()
     const startDate = new Date()
-    let dateFormat: Intl.DateTimeFormat
     
-    if (timeFilter === 'month') {
+    // Define the period key formatting function
+    let getPeriodKey: (date: Date) => string
+    
+    if (timeFilter === 'week') {
+      startDate.setMonth(now.getMonth() - 3)
+      // Create a custom formatter that includes week number and month
+      const getWeekNumber = (date: Date) => {
+        const firstDayOfYear = new Date(date.getFullYear(), 0, 1)
+        const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000
+        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7)
+      }
+      
+      const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' })
+      
+      getPeriodKey = (date: Date) => {
+        const weekNum = getWeekNumber(date)
+        const month = monthFormatter.format(date)
+        return `W${weekNum} (${month})`
+      }
+    } else if (timeFilter === 'month') {
       startDate.setMonth(now.getMonth() - 1)
-      dateFormat = new Intl.DateTimeFormat('en-US', { 
+      const dateFormat = new Intl.DateTimeFormat('en-US', { 
         month: 'short', 
         day: 'numeric' 
       })
+      getPeriodKey = (date: Date) => dateFormat.format(date)
     } else if (timeFilter === 'year') {
       startDate.setFullYear(now.getFullYear() - 1)
-      dateFormat = new Intl.DateTimeFormat('en-US', { 
+      const dateFormat = new Intl.DateTimeFormat('en-US', { 
         month: 'short',
         year: 'numeric'
       })
+      getPeriodKey = (date: Date) => dateFormat.format(date)
     } else {
       // All time
       startDate.setFullYear(now.getFullYear() - 5) // Arbitrary 5 years back for "all"
-      dateFormat = new Intl.DateTimeFormat('en-US', { 
+      const dateFormat = new Intl.DateTimeFormat('en-US', { 
         month: 'short',
         year: 'numeric'
       })
+      getPeriodKey = (date: Date) => dateFormat.format(date)
     }
 
     // Filter transactions based on date range
@@ -78,17 +99,12 @@ export function TransactionTrendsChart({ timeFilter = 'month' }: TransactionTren
     // Group data by time periods
     const dataByPeriod: Record<string, { income: number; expenses: number; timestamp: number }> = {}
     
-    // Define period formatter based on timeFilter
-    const getPeriodKey = (date: Date) => {
-      return dateFormat.format(date)
-    }
-
     // Initialize all days/months in the range to ensure continuous data
     if (timeFilter === 'month') {
       // For month view, create entries for each day
       const currentDate = new Date(startDate)
       while (currentDate <= now) {
-        const key = dateFormat.format(currentDate)
+        const key = getPeriodKey(currentDate)
         dataByPeriod[key] = { 
           income: 0, 
           expenses: 0,
@@ -100,7 +116,7 @@ export function TransactionTrendsChart({ timeFilter = 'month' }: TransactionTren
       // For year/all view, create entries for each month
       const currentDate = new Date(startDate)
       while (currentDate <= now) {
-        const key = dateFormat.format(currentDate)
+        const key = getPeriodKey(currentDate)
         dataByPeriod[key] = { 
           income: 0, 
           expenses: 0,
@@ -187,7 +203,9 @@ export function TransactionTrendsChart({ timeFilter = 'month' }: TransactionTren
             ? 'Last 30 days income and expenses' 
             : timeFilter === 'year' 
               ? 'Last 12 months income and expenses' 
-              : 'Historical income and expenses'}
+              : timeFilter === 'week' 
+                ? 'Last 3 months income and expenses (weekly)'
+                : 'Historical income and expenses'}
         </CardDescription>
       </CardHeader>
       <CardContent className="h-80">

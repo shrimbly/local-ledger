@@ -14,10 +14,14 @@ export interface Transaction {
   updatedAt: Date
 }
 
+export type SpendingType = 'essential' | 'discretionary' | 'mixed' | 'unclassified';
+
 export interface Category {
   id: string
   name: string
   color?: string | null
+  spendingType?: SpendingType
+  description?: string | null
   transactions?: Transaction[]
   rules?: CategorizationRule[]
   createdAt: Date
@@ -63,11 +67,15 @@ export interface TransactionUpdateInput {
 export interface CategoryCreateInput {
   name: string
   color?: string
+  spendingType?: SpendingType
+  description?: string
 }
 
 export interface CategoryUpdateInput {
   name?: string
   color?: string | null
+  spendingType?: SpendingType
+  description?: string | null
 }
 
 export interface BulkCategoryCreateInput {

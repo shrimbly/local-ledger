@@ -69,6 +69,8 @@ function initTables() {
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       color TEXT,
+      spendingType TEXT DEFAULT "unclassified",
+      description TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )
@@ -106,14 +108,26 @@ function initTables() {
 // Apply database migrations for schema changes
 function migrateDatabase() {
   try {
-    // Check if color column exists in Categories table
+    // Check columns in Categories table
     const tableInfo = db.prepare("PRAGMA table_info(Categories)").all();
     const hasColorColumn = tableInfo.some(column => column.name === 'color');
+    const hasSpendingTypeColumn = tableInfo.some(column => column.name === 'spendingType');
+    const hasDescriptionColumn = tableInfo.some(column => column.name === 'description');
     
-    // Add color column if it doesn't exist
+    // Add columns if they don't exist
     if (!hasColorColumn) {
       console.log('Migrating Categories table: adding color column');
       db.exec('ALTER TABLE Categories ADD COLUMN color TEXT');
+    }
+    
+    if (!hasSpendingTypeColumn) {
+      console.log('Migrating Categories table: adding spendingType column');
+      db.exec('ALTER TABLE Categories ADD COLUMN spendingType TEXT DEFAULT "unclassified"');
+    }
+    
+    if (!hasDescriptionColumn) {
+      console.log('Migrating Categories table: adding description column');
+      db.exec('ALTER TABLE Categories ADD COLUMN description TEXT');
     }
     
     // Check if CategorizationRules table exists and create it if not
@@ -219,7 +233,8 @@ function rowToCategory(row: any): Category {
   return {
     ...row,
     createdAt: new Date(row.createdAt),
-    updatedAt: new Date(row.updatedAt)
+    updatedAt: new Date(row.updatedAt),
+    spendingType: row.spendingType || 'unclassified'
   };
 }
 
@@ -537,14 +552,16 @@ export async function createCategory(data: CategoryCreateInput): Promise<Categor
     const id = generateUUID();
     
     const stmt = db.prepare(`
-      INSERT INTO Categories (id, name, color, createdAt, updatedAt)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO Categories (id, name, color, spendingType, description, createdAt, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
     
     stmt.run(
       id,
       data.name,
       data.color || null,
+      data.spendingType || "unclassified",
+      data.description || "",
       now,
       now
     );
@@ -564,8 +581,8 @@ export async function createCategories(data: CategoryCreateInput[]): Promise<Cat
     const transaction = db.transaction((categories: CategoryCreateInput[]) => {
       const now = new Date().toISOString();
       const stmt = db.prepare(`
-        INSERT INTO Categories (id, name, color, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO Categories (id, name, color, spendingType, description, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const category of categories) {
@@ -574,6 +591,8 @@ export async function createCategories(data: CategoryCreateInput[]): Promise<Cat
           id,
           category.name,
           category.color || null,
+          category.spendingType || "unclassified",
+          category.description || "",
           now,
           now
         );
@@ -581,6 +600,8 @@ export async function createCategories(data: CategoryCreateInput[]): Promise<Cat
           id,
           name: category.name,
           color: category.color || null,
+          spendingType: category.spendingType || "unclassified",
+          description: category.description || "",
           createdAt: new Date(now),
           updatedAt: new Date(now)
         });
@@ -607,11 +628,13 @@ export async function updateCategory(id: string, data: CategoryUpdateInput): Pro
     // Update the category
     db.prepare(`
       UPDATE Categories
-      SET name = ?, color = ?, updatedAt = ?
+      SET name = ?, color = ?, spendingType = ?, description = ?, updatedAt = ?
       WHERE id = ?
     `).run(
       data.name || category.name,
       data.color !== undefined ? data.color : category.color,
+      data.spendingType !== undefined ? data.spendingType : category.spendingType,
+      data.description !== undefined ? data.description : category.description,
       new Date().toISOString(),
       id
     );

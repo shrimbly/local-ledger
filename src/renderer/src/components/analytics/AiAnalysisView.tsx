@@ -6,10 +6,12 @@ import { Skeleton } from '@renderer/components/ui/skeleton'
 import { geminiService } from '@renderer/services/geminiService'
 import { AlertCircle, BarChart3, RefreshCw, Star } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
-import { filterTransactionsByDate, prepareTransactionsForAiAnalysis, aggregateTransactionData, formatAggregatedDataSummary } from '@renderer/lib/dataAggregation'
+import { filterTransactionsByDate, aggregateDataForAi, aggregateTransactionData, formatAggregatedDataSummary } from '@renderer/lib/dataAggregation'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface AiAnalysisViewProps {
-  timeFilter: 'all' | 'month' | 'year'
+  timeFilter: 'all' | 'month' | 'year' | 'week'
 }
 
 export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
@@ -88,28 +90,43 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
         return
       }
       
-      // Generate local summary as fallback
-      const aggregatedData = aggregateTransactionData(filteredTransactions, categories)
-      const localSummary = formatAggregatedDataSummary(aggregatedData)
+      // Use the new aggregation function
+      const summaryData = aggregateDataForAi(filteredTransactions, categories, timeFilter)
       
-      // Try to get AI insights
+      if (!summaryData) {
+        setError('Could not generate data summary for AI analysis')
+        setInsights(null)
+        setLoading(false)
+        return
+      }
+      
+      // Generate local summary as fallback
+      const aggregatedDataForFallback = aggregateTransactionData(filteredTransactions, categories)
+      const localSummary = formatAggregatedDataSummary(aggregatedDataForFallback)
+      
+      // Try to get AI insights using the new summary data
       try {
-        // Prepare data for analysis
-        const transactionsForAi = prepareTransactionsForAiAnalysis(filteredTransactions, categories)
-        
-        // Get insights from Gemini API
+        // Get insights from Gemini API, passing the structured summary
         const result = await Promise.race([
-          geminiService.analyzeTransactions(transactionsForAi),
-          // Timeout after 10 seconds
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 10000))
+          // Cast summaryData to any to bypass strict type checking for IPC call temporarily
+          geminiService.analyzeTransactions(summaryData as any), 
+          // Timeout after 30 seconds (increased timeout)
+          new Promise<string | null>((resolve) => setTimeout(() => resolve(null), 45000))
         ])
         
         if (!result) {
           throw new Error('AI analysis timed out or failed')
         }
         
-        setInsights(result)
-        setError(null)
+        // Check if the result is an error message from the main process
+        if (result.startsWith('Error:')) {
+            setError(result);
+            setInsights(null);
+        } else {
+            setInsights(result);
+            setError(null);
+        }
+        
       } catch (aiError) {
         console.warn('AI analysis failed, using local summary:', aiError)
         
@@ -119,7 +136,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           localSummary
         
         setInsights(fullSummary)
-        // Don't set error since we have a fallback
+        // Don't set error since we have a fallback, but maybe add a warning insight?
       }
     } catch (err) {
       console.error('Error getting insights:', err)
@@ -165,31 +182,16 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
 
     // Render the insights with markdown formatting
     return (
-      <div className="prose prose-sm max-w-none mt-4">
-        {insights.split('\n').map((paragraph, index) => {
-          // Check if paragraph is a heading (starts with #)
-          if (paragraph.startsWith('# ')) {
-            return <h3 key={index} className="text-lg font-bold mt-4">{paragraph.substring(2)}</h3>
-          }
-          // Check if paragraph is a subheading (starts with ##)
-          if (paragraph.startsWith('## ')) {
-            return <h4 key={index} className="text-md font-semibold mt-3">{paragraph.substring(3)}</h4>
-          }
-          // Check if paragraph is a list item (starts with -)
-          if (paragraph.startsWith('- ')) {
-            return <li key={index} className="ml-4">{paragraph.substring(2)}</li>
-          }
-          // Check if paragraph is a numbered list item (starts with 1., 2., etc.)
-          if (/^\d+\.\s/.test(paragraph)) {
-            return <li key={index} className="ml-4">{paragraph.substring(paragraph.indexOf('.')+1)}</li>
-          }
-          // Empty paragraph - add spacing
-          if (paragraph.trim() === '') {
-            return <div key={index} className="h-2"></div>
-          }
-          // Regular paragraph
-          return <p key={index}>{paragraph}</p>
-        })}
+      <div className="prose prose-sm max-w-none dark:prose-invert mt-4">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            p: ({node, ...props}) => <p className="mb-4" {...props} />,
+            h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />
+          }}
+        >
+          {insights}
+        </ReactMarkdown>
       </div>
     )
   }

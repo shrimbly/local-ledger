@@ -1,5 +1,7 @@
 // Type definitions for database models
 
+export type SpendingType = 'essential' | 'discretionary' | 'mixed' | 'unclassified';
+
 export interface Transaction {
   id: string
   date: Date | string
@@ -20,6 +22,8 @@ export interface Category {
   id: string
   name: string
   color?: string | null
+  spendingType?: SpendingType
+  description?: string | null
   transactions?: Transaction[]
   rules?: CategorizationRule[]
   createdAt: Date | string
@@ -69,11 +73,15 @@ export interface TransactionUpdateInput {
 export interface CategoryCreateInput {
   name: string
   color?: string
+  spendingType?: SpendingType
+  description?: string
 }
 
 export interface CategoryUpdateInput {
   name?: string
   color?: string | null
+  spendingType?: SpendingType
+  description?: string | null
 }
 
 export interface CategorizationRuleCreateInput {

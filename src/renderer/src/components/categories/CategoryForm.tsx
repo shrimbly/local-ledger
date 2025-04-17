@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
-import { Category, CategoryCreateInput, CategoryUpdateInput } from '../../lib/types'
+import { Category, CategoryCreateInput, CategoryUpdateInput, SpendingType } from '../../lib/types'
 import { createCategory, updateCategory } from '../../services/categoryService'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 
 // Nice color palette for random assignment
 const COLOR_PALETTE = [
@@ -34,6 +35,8 @@ interface CategoryFormProps {
 export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) {
   const [name, setName] = useState('')
   const [color, setColor] = useState('#3b82f6') // Default blue color
+  const [spendingType, setSpendingType] = useState<SpendingType>('unclassified')
+  const [description, setDescription] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,10 +50,14 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
     if (category) {
       setName(category.name)
       setColor(category.color || '#3b82f6')
+      setSpendingType(category.spendingType || 'unclassified')
+      setDescription(category.description || '')
     } else {
       // Reset form when adding a new category
       setName('')
       setColor(getRandomColor())
+      setSpendingType('unclassified')
+      setDescription('')
     }
   }, [category])
 
@@ -69,14 +76,18 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
         // Update existing category
         const updateData: CategoryUpdateInput = {
           name,
-          color
+          color,
+          spendingType,
+          description: description.trim() || null
         }
         await updateCategory(category.id, updateData)
       } else {
         // Create new category
         const createData: CategoryCreateInput = {
           name,
-          color
+          color,
+          spendingType,
+          description: description.trim() || undefined
         }
         await createCategory(createData)
       }
@@ -101,6 +112,42 @@ export function CategoryForm({ category, onSave, onCancel }: CategoryFormProps) 
           placeholder="Enter category name"
           disabled={isSubmitting}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Input
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Enter a short description of this category"
+          disabled={isSubmitting}
+        />
+        <p className="text-sm text-muted-foreground mt-1">
+          Provide context about what expenses belong in this category
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="spendingType">Spending Type</Label>
+        <Select
+          value={spendingType}
+          onValueChange={(value) => setSpendingType(value as SpendingType)}
+          disabled={isSubmitting}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select spending type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="essential">Essential - Basic needs</SelectItem>
+            <SelectItem value="discretionary">Discretionary - Wants</SelectItem>
+            <SelectItem value="mixed">Mixed - Combination</SelectItem>
+            <SelectItem value="unclassified">Unclassified</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-sm text-muted-foreground mt-1">
+          Classify this category to improve AI analysis of your spending patterns.
+        </p>
       </div>
 
       <div className="space-y-2">

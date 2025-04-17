@@ -10,7 +10,7 @@ import {
 } from '../ui/table'
 import { Button } from '../ui/button'
 import { Edit, Trash2 } from 'lucide-react'
-import { Category } from '../../lib/types'
+import { Category, SpendingType } from '../../lib/types'
 import { deleteCategory } from '../../services/categoryService'
 import {
   AlertDialog,
@@ -22,6 +22,39 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '../ui/alert-dialog'
+import { cn } from '../../lib/utils'
+
+// Spending type badge component
+function SpendingTypeBadge({ type }: { type: SpendingType | undefined }) {
+  const getTypeColor = (type: SpendingType | undefined): string => {
+    switch (type) {
+      case 'essential':
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'discretionary':
+        return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'mixed':
+        return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'unclassified':
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getTypeLabel = (type: SpendingType | undefined): string => {
+    if (!type) return 'Unclassified';
+    // Capitalize first letter
+    return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  return (
+    <span className={cn(
+      'px-2 py-1 text-xs font-medium rounded-full border',
+      getTypeColor(type)
+    )}>
+      {getTypeLabel(type)}
+    </span>
+  );
+}
 
 interface CategoryTableProps {
   categories: Category[]
@@ -98,6 +131,7 @@ export function CategoryTable({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Color</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -107,6 +141,9 @@ export function CategoryTable({
               <TableRow key={index}>
                 <TableCell>
                   <div className="h-4 w-40 animate-pulse rounded bg-gray-200"></div>
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 w-24 animate-pulse rounded bg-gray-200"></div>
                 </TableCell>
                 <TableCell>
                   <div className="h-4 w-20 animate-pulse rounded bg-gray-200"></div>
@@ -144,6 +181,12 @@ export function CategoryTable({
               >
                 Name{getSortIndicator('name')}
               </TableHead>
+              <TableHead
+                className="cursor-pointer hover:bg-gray-50"
+                onClick={() => handleSort('spendingType')}
+              >
+                Type{getSortIndicator('spendingType')}
+              </TableHead>
               <TableHead>Color</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -151,7 +194,17 @@ export function CategoryTable({
           <TableBody>
             {sortedCategories.map((category) => (
               <TableRow key={category.id} className="hover:bg-gray-50">
-                <TableCell className="font-medium">{category.name}</TableCell>
+                <TableCell className="font-medium">
+                  {category.name}
+                  {category.description && (
+                    <p className="text-xs text-gray-500 mt-1 truncate max-w-[200px]">
+                      {category.description}
+                    </p>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <SpendingTypeBadge type={category.spendingType} />
+                </TableCell>
                 <TableCell>
                   {category.color ? (
                     <div className="flex items-center">

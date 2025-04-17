@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI, type HarmCategory, type HarmBlockThreshold } from '@google/generative-ai';
 import { KeytarService, ApiKeyType } from './keytar-service';
-import { GeminiResponse, GeminiCategorySuggestion, GeminiError, ERROR_CODES } from './types';
+import { GeminiResponse, GeminiCategorySuggestion, GeminiError, ERROR_CODES, Transaction, Category } from './types';
 
 // Safety settings for the Gemini API
 const safetySettings = [
@@ -21,6 +21,39 @@ const safetySettings = [
     threshold: 'BLOCK_MEDIUM_AND_ABOVE' as HarmBlockThreshold
   }
 ];
+
+// Add the AI Analysis Summary interface (or import if moved to types.ts)
+interface AiAnalysisDataSummary {
+  timePeriod: string;
+  totalIncome: number;
+  totalExpenses: number;
+  netAmount: number;
+  expenseBreakdown: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    percentage: number;
+    spendingType?: string;
+    description?: string;
+  }>;
+  spendingTypeBreakdown: {
+    essential: { amount: number, percentage: number },
+    discretionary: { amount: number, percentage: number },
+    mixed: { amount: number, percentage: number },
+    unclassified: { amount: number, percentage: number }
+  };
+  uncategorizedExpenses: {
+    amount: number;
+    count: number;
+  };
+  largestExpense?: {
+    description: string;
+    amount: number;
+    category?: string;
+    spendingType?: string;
+    categoryDescription?: string;
+  };
+}
 
 /**
  * Service for interacting with Google Gemini API
@@ -228,58 +261,120 @@ export class GeminiService {
   }
 
   /**
-   * Analyze a set of transactions for patterns and insights
-   * @param transactions Array of transactions to analyze
-   * @returns Promise resolving to analysis insights
+   * Analyze aggregated financial data for patterns and insights
+   * @param summaryData The aggregated AiAnalysisDataSummary object
+   * @returns Promise resolving to analysis insights string
    */
-  static async analyzeTransactions(transactions: any[]): Promise<string | null> {
+  static async analyzeTransactions(summaryData: AiAnalysisDataSummary): Promise<string | null> {
     try {
       if (!this.isInitialized()) {
         await this.initialize();
-        
         if (!this.isInitialized()) {
           console.error('Failed to initialize Gemini API client');
-          return null;
+          return 'Error: Gemini API not initialized. Please check your API key in Settings.';
         }
       }
 
-      const model = this.getModel();
-      if (!model) return null;
+      // Use the specified model name
+      const modelName = "gemini-2.5-pro-exp-03-25";
+      const model = this.genAI?.getGenerativeModel({ model: modelName });
 
-      // Limit to 50 transactions to avoid exceeding token limits
-      const limitedTransactions = transactions.slice(0, 50);
-      
-      const transactionsText = JSON.stringify(
-        limitedTransactions.map(t => ({
-          date: t.date,
-          description: t.description,
-          amount: t.amount,
-          category: t.category?.name || 'Uncategorized'
-        }))
-      );
+      if (!model) {
+        console.error('Could not get Gemini model instance.');
+        return 'Error: Could not access Gemini model.';
+      }
 
-      const prompt = `
-        You are a financial advisor. Analyze the following transactions and provide insights:
+      // --- Construct the new prompt --- 
+      const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency', 
+          currency: 'USD'
+        }).format(amount)
+      }
+
+      let prompt = `You are a helpful financial analyst assistant. Your goal is to provide clear, actionable insights based on the user's spending data.
+
+Here is the financial summary for the period: ${summaryData.timePeriod}
+
+Overall:
+* Total Income: ${formatCurrency(summaryData.totalIncome)}
+* Total Expenses: ${formatCurrency(summaryData.totalExpenses)}
+* Net Income/Savings: ${formatCurrency(summaryData.netAmount)}
+
+Spending Breakdown by Category (Sorted by amount):
+`;
+
+      if (summaryData.expenseBreakdown.length > 0) {
+        summaryData.expenseBreakdown.forEach(cat => {
+          const spendingTypeLabel = cat.spendingType ? ` [${cat.spendingType}]` : '';
+          const descriptionText = cat.description ? ` - ${cat.description}` : '';
+          prompt += `* ${cat.name}${spendingTypeLabel}: ${formatCurrency(cat.amount)} (${cat.percentage.toFixed(1)}%)${descriptionText}\n`;
+        });
+      } else {
+        prompt += `* No categorized expenses found for this period.\n`;
+      }
+
+      // Add spending type breakdown
+      prompt += `\nSpending by Type:
+* Essential Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.essential.amount)} (${summaryData.spendingTypeBreakdown.essential.percentage.toFixed(1)}%)
+* Discretionary Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.discretionary.amount)} (${summaryData.spendingTypeBreakdown.discretionary.percentage.toFixed(1)}%)
+* Mixed Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.mixed.amount)} (${summaryData.spendingTypeBreakdown.mixed.percentage.toFixed(1)}%)
+* Unclassified Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.unclassified.amount)} (${summaryData.spendingTypeBreakdown.unclassified.percentage.toFixed(1)}%)\n`;
+
+      if (summaryData.uncategorizedExpenses.count > 0) {
+        prompt += `\nUncategorized Expenses:
+* Amount: ${formatCurrency(summaryData.uncategorizedExpenses.amount)}
+* Number of Transactions: ${summaryData.uncategorizedExpenses.count}\n`;
+      }
+
+      if (summaryData.largestExpense) {
+        const spendingTypeLabel = summaryData.largestExpense.spendingType 
+          ? `\n* Spending Type: ${summaryData.largestExpense.spendingType}` 
+          : '';
         
-        Transactions: ${transactionsText}
+        const categoryDescriptionText = summaryData.largestExpense.categoryDescription
+          ? `\n* Category Description: ${summaryData.largestExpense.categoryDescription}`
+          : '';
         
-        Please provide a brief analysis including:
-        1. Spending patterns
-        2. Top spending categories
-        3. Unusual transactions
-        4. Potential savings opportunities
-        
-        Limit your response to 500 words.
-      `;
+        prompt += `\nLargest Single Expense:
+* Description: ${summaryData.largestExpense.description}
+* Amount: ${formatCurrency(summaryData.largestExpense.amount)}
+* Category: ${summaryData.largestExpense.category || 'N/A'}${spendingTypeLabel}${categoryDescriptionText}\n`;
+      }
+
+      // Append the instructions part
+      prompt += `\nPlease analyze this summary and provide:
+1. Key observations about spending patterns based on both the category breakdown and spending types (essential vs. discretionary).
+2. Identification of the top 3-5 spending categories and their significance.
+3. Analysis of the balance between essential and discretionary spending.
+4. Potential areas where the user might be overspending or could save money, based on the category data and spending types.
+5. A concise summary of the user's spending habits for this period.
+
+Format your response using Markdown. Be clear, concise, and actionable. Avoid generic advice not directly supported by the data.`;
+      // --- End of prompt construction ---
+
+      console.log(`[Gemini Service] Sending prompt to model: ${modelName}\n---\n${prompt}\n---`);
 
       const result = await model.generateContent(prompt);
       const response = result.response;
       const text = response.text();
       
+      console.log('[Gemini Service] Received response text length:', text?.length);
       return text;
+      
     } catch (error) {
       console.error('Error analyzing transactions:', error);
-      return null;
+      // Provide a more informative error message to the user
+      let errorMessage = 'Error analyzing transactions.';
+      if (error instanceof Error) {
+        // Check for common API errors if possible (e.g., authentication, quota)
+        if (error.message.includes('API key not valid')) {
+          errorMessage = 'Error: Invalid Gemini API key. Please check your API key in Settings.';
+        } else if (error.message.includes('quota')) {
+          errorMessage = 'Error: Gemini API quota exceeded. Please try again later.';
+        }
+      }
+      return errorMessage; 
     }
   }
 

@@ -3,21 +3,33 @@ import { useTransactionStore, useCategoryStore } from '@renderer/stores'
 import { filterTransactionsByDate } from '@renderer/lib/dataAggregation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@renderer/components/ui/card'
 import { formatCurrency } from '@renderer/lib/utils'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, Legend, ResponsiveContainer 
+} from 'recharts'
 
-interface SpendingTrendChartProps {
-  timeFilter: 'all' | 'month' | 'year' | 'week'
+interface CategoryTrendChartProps {
+  timeFilter: 'week' | 'month' | 'year' | 'all'
 }
 
-export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
+export function CategoryTrendChart({ timeFilter }: CategoryTrendChartProps) {
   const { transactions, isLoading } = useTransactionStore()
   const { categories } = useCategoryStore()
   
-  const chartData = useMemo(() => {
-    if (!transactions.length) return []
+  const { chartData, topCategories } = useMemo(() => {
+    if (!transactions.length || !categories.length) {
+      return { chartData: [], topCategories: [] }
+    }
     
     // Filter transactions based on date range
     const filteredTransactions = filterTransactionsByDate(transactions, timeFilter)
+    
+    // Only include expense transactions (negative amounts)
+    const expenseTransactions = filteredTransactions.filter(t => t.amount < 0)
+    
+    if (!expenseTransactions.length) {
+      return { chartData: [], topCategories: [] }
+    }
     
     // Determine time bucket based on filter
     let dateFormat: (date: Date) => string
@@ -36,7 +48,7 @@ export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
       }
     } else if (timeFilter === 'month') {
       // For month view, group by day
-      dateFormat = (date: Date) => `${date.getDate()}/${date.getMonth() + 1}`
+      dateFormat = (date: Date) => `${date.getDate()}`
     } else if (timeFilter === 'year') {
       // For year view, group by month
       dateFormat = (date: Date) => {
@@ -51,52 +63,91 @@ export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
       }
     }
     
-    // Create accumulative data structure
-    const accumulativeData: Record<string, {
+    // Calculate total expense per category
+    const expensesByCategory: Record<string, number> = {}
+    let totalExpense = 0
+    
+    expenseTransactions.forEach(transaction => {
+      const categoryId = transaction.categoryId || 'uncategorized'
+      const absAmount = Math.abs(transaction.amount)
+      
+      if (!expensesByCategory[categoryId]) {
+        expensesByCategory[categoryId] = 0
+      }
+      
+      expensesByCategory[categoryId] += absAmount
+      totalExpense += absAmount
+    })
+    
+    // Get top 5 categories by total expense
+    const topCategoriesIds = Object.entries(expensesByCategory)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([id]) => id)
+    
+    const topCategoriesWithInfo = topCategoriesIds.map(id => {
+      const category = categories.find(c => c.id === id) || {
+        id: 'uncategorized',
+        name: 'Uncategorized',
+        color: '#6E6E6E' // Default color
+      }
+      
+      return {
+        id,
+        name: category.name,
+        color: category.color || '#6E6E6E',
+        amount: expensesByCategory[id],
+        percentage: (expensesByCategory[id] / totalExpense) * 100
+      }
+    })
+    
+    // Create data structure for chart, grouped by time period and category
+    const dataByPeriod: Record<string, {
       date: string,
-      expenses: number,
-      income: number,
-      netBalance: number,
-      timestamp: number // For sorting
+      timestamp: number,
+      [categoryId: string]: number | string
     }> = {}
     
     // Sort transactions by date
-    const sortedTransactions = [...filteredTransactions].sort(
+    const sortedTransactions = [...expenseTransactions].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     )
     
     // Process transactions
     sortedTransactions.forEach(transaction => {
+      // Skip if not in top categories
+      const categoryId = transaction.categoryId || 'uncategorized'
+      if (!topCategoriesIds.includes(categoryId)) return
+      
       const date = new Date(transaction.date)
       const periodKey = dateFormat(date)
       
-      if (!accumulativeData[periodKey]) {
-        accumulativeData[periodKey] = {
+      if (!dataByPeriod[periodKey]) {
+        dataByPeriod[periodKey] = {
           date: periodKey,
-          expenses: 0,
-          income: 0,
-          netBalance: 0,
-          timestamp: date.getTime()
+          timestamp: date.getTime(),
         }
+        
+        // Initialize all top categories to 0
+        topCategoriesIds.forEach(catId => {
+          dataByPeriod[periodKey][catId] = 0
+        })
       }
       
-      const amount = transaction.amount
-      
-      if (amount < 0) {
-        accumulativeData[periodKey].expenses += Math.abs(amount)
-      } else {
-        accumulativeData[periodKey].income += amount
-      }
-      
-      accumulativeData[periodKey].netBalance = 
-        accumulativeData[periodKey].income - accumulativeData[periodKey].expenses
+      const absAmount = Math.abs(transaction.amount)
+      dataByPeriod[periodKey][categoryId] = 
+        (dataByPeriod[periodKey][categoryId] as number || 0) + absAmount
     })
     
     // Convert to array and sort by date
-    return Object.values(accumulativeData)
+    const chartData = Object.values(dataByPeriod)
       .sort((a, b) => a.timestamp - b.timestamp)
-      
-  }, [transactions, timeFilter])
+    
+    return { 
+      chartData, 
+      topCategories: topCategoriesWithInfo 
+    }
+  }, [transactions, categories, timeFilter])
   
   // Format date range based on filter
   const dateRangeText = useMemo(() => {
@@ -136,7 +187,7 @@ export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-xl">Spending Trends</CardTitle>
+        <CardTitle className="text-xl">Category Spending Trends</CardTitle>
         <CardDescription>{dateRangeText}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -158,39 +209,24 @@ export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
                 />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="income" 
-                  stroke="#10b981" 
-                  name="Income" 
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 6 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="expenses" 
-                  stroke="#ef4444" 
-                  name="Expenses" 
-                  strokeWidth={2} 
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 6 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="netBalance" 
-                  stroke="#6366f1" 
-                  name="Net Balance" 
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 6 }}
-                />
+                {topCategories.map(category => (
+                  <Line 
+                    key={category.id}
+                    type="monotone" 
+                    dataKey={category.id}
+                    name={category.name}
+                    stroke={category.color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 6 }}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
           <div className="h-80 flex items-center justify-center">
-            <p className="text-muted-foreground">No data available for the selected period</p>
+            <p className="text-muted-foreground">No expense data available for the selected period</p>
           </div>
         )}
       </CardContent>
@@ -198,4 +234,4 @@ export function SpendingTrendChart({ timeFilter }: SpendingTrendChartProps) {
   )
 }
 
-export default SpendingTrendChart 
+export default CategoryTrendChart 

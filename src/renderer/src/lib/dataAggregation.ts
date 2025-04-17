@@ -32,19 +32,49 @@ interface AggregatedTransactionData {
   unexpectedTransactions: Transaction[]
 }
 
+// New interface for AI summary data
+interface AiAnalysisDataSummary {
+  timePeriod: string;
+  totalIncome: number;
+  totalExpenses: number;
+  netAmount: number;
+  expenseBreakdown: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>;
+  incomeBreakdown?: Array<{
+    name: string;
+    amount: number;
+    percentage: number;
+  }>; // Optional: Could add income breakdown too
+  uncategorizedExpenses: {
+    amount: number;
+    count: number;
+  };
+  largestExpense?: {
+    description: string;
+    amount: number;
+    category?: string;
+  };
+}
+
 /**
  * Filters transactions based on a date range
  */
 export function filterTransactionsByDate(
   transactions: Transaction[],
-  timeFilter: 'all' | 'month' | 'year'
+  timeFilter: 'all' | 'month' | 'year' | 'week'
 ): Transaction[] {
   if (!transactions.length) return []
 
   const now = new Date()
   const startDate = new Date()
   
-  if (timeFilter === 'month') {
+  if (timeFilter === 'week') {
+    // Last 3 months for weekly analysis
+    startDate.setMonth(now.getMonth() - 3)
+  } else if (timeFilter === 'month') {
     startDate.setDate(now.getDate() - 30)
   } else if (timeFilter === 'year') {
     startDate.setFullYear(now.getFullYear() - 1)
@@ -207,6 +237,124 @@ export function aggregateTransactionData(
   }
   
   return result
+}
+
+/**
+ * Aggregates transaction data into a structured summary for AI analysis.
+ */
+export function aggregateDataForAi(
+  transactions: Transaction[],
+  categories: Category[],
+  timeFilter: 'all' | 'month' | 'year' | 'week'
+): AiAnalysisDataSummary | null {
+  if (!transactions.length) return null
+
+  // Determine time period text
+  let timePeriodText: string;
+  switch (timeFilter) {
+    case 'week':
+      timePeriodText = 'Last 3 Months (Weekly)'
+      break;
+    case 'month':
+      timePeriodText = 'Last 30 Days'
+      break;
+    case 'year':
+      timePeriodText = 'Last 12 Months'
+      break;
+    default:
+      timePeriodText = 'All Time'
+  }
+
+  // --- Calculations (similar to aggregateTransactionData but more detailed) ---
+  let totalIncome = 0
+  let totalExpenses = 0
+  let largestExpenseTransaction: Transaction | null = null
+  let uncategorizedAmount = 0
+  let uncategorizedCount = 0
+
+  const expensesByCategory: Record<string, { amount: number; count: number }> = {}
+  // Optional: const incomeByCategory: Record<string, { amount: number; count: number }> = {}
+
+  transactions.forEach(transaction => {
+    const amount = transaction.amount
+    const absAmount = Math.abs(amount)
+
+    if (amount < 0) {
+      // Expenses
+      totalExpenses += absAmount
+      if (!largestExpenseTransaction || absAmount > Math.abs(largestExpenseTransaction.amount)) {
+        largestExpenseTransaction = transaction
+      }
+      
+      const category = categories.find(c => c.id === transaction.categoryId)
+      if (category) {
+        if (!expensesByCategory[category.id]) {
+          expensesByCategory[category.id] = { amount: 0, count: 0 }
+        }
+        expensesByCategory[category.id].amount += absAmount
+        expensesByCategory[category.id].count++
+      } else {
+        uncategorizedAmount += absAmount
+        uncategorizedCount++
+      }
+    } else {
+      // Income
+      totalIncome += amount
+      // Optional: Add income category tracking here if needed
+    }
+  })
+
+  // Prepare expense breakdown
+  const expenseBreakdown = Object.entries(expensesByCategory)
+    .map(([categoryId, data]) => {
+      const category = categories.find(c => c.id === categoryId)
+      return {
+        id: categoryId,
+        name: category?.name || 'Unknown Category',
+        amount: data.amount,
+        percentage: totalExpenses > 0 ? (data.amount / totalExpenses) * 100 : 0
+      }
+    })
+    .sort((a, b) => b.amount - a.amount) // Sort by amount descending
+
+  // Prepare largest expense detail
+  let largestExpenseDetail: {
+    description: string;
+    amount: number;
+    category?: string;
+  } | undefined = undefined;
+
+  // Since we know largestExpenseTransaction is valid at this point, we can safely type cast it
+  if (largestExpenseTransaction) {
+    // Type guard for Transaction interface
+    const validTransaction = largestExpenseTransaction as unknown as {
+      description: string;
+      amount: number;
+      categoryId?: string;
+    };
+    
+    const category = categories.find(c => c.id === validTransaction.categoryId);
+    
+    largestExpenseDetail = {
+      description: validTransaction.description,
+      amount: Math.abs(validTransaction.amount),
+      category: category?.name
+    };
+  }
+
+  return {
+    timePeriod: timePeriodText,
+    totalIncome,
+    totalExpenses,
+    netAmount: totalIncome - totalExpenses,
+    expenseBreakdown,
+    // Optional: Add incomeBreakdown here
+    uncategorizedExpenses: {
+      amount: uncategorizedAmount,
+      count: uncategorizedCount
+    },
+    largestExpense: largestExpenseDetail
+  }
 }
 
 /**

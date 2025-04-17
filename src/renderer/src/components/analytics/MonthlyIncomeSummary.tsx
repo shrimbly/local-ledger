@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp } from 'lucide-react'
 import { formatCurrency } from '@renderer/lib/format'
 
 interface MonthlyIncomeSummaryProps {
-  timeFilter: 'all' | 'month' | 'year'
+  timeFilter: 'all' | 'month' | 'year' | 'week'
 }
 
 interface MonthlySummary {
@@ -35,7 +35,19 @@ export function MonthlyIncomeSummary({ timeFilter }: MonthlyIncomeSummaryProps) 
     let compareDate: Date | null = null
 
     // Filter transactions based on time filter
-    if (timeFilter === 'month') {
+    if (timeFilter === 'week') {
+      // Last 3 months (for weekly view)
+      const threeMonthsAgo = new Date(now)
+      threeMonthsAgo.setMonth(now.getMonth() - 3)
+      
+      // For previous period comparison
+      compareDate = new Date(threeMonthsAgo)
+      compareDate.setMonth(compareDate.getMonth() - 3)
+      
+      filteredTransactions = transactions.filter(t => 
+        new Date(t.date) >= threeMonthsAgo
+      )
+    } else if (timeFilter === 'month') {
       // Last 30 days
       const thirtyDaysAgo = new Date(now)
       thirtyDaysAgo.setDate(now.getDate() - 30)
@@ -118,6 +130,8 @@ export function MonthlyIncomeSummary({ timeFilter }: MonthlyIncomeSummaryProps) 
   // Memoize period text
   const periodText = useMemo(() => {
     switch (timeFilter) {
+      case 'week':
+        return 'Last 3 Months (Weekly)'
       case 'month':
         return 'Last 30 Days'
       case 'year':
