@@ -1,25 +1,41 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTransactionStore, useCategoryStore } from '@renderer/stores'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@renderer/components/ui/card'
 import { Button } from '@renderer/components/ui/button'
 import { Skeleton } from '@renderer/components/ui/skeleton'
 import { geminiService } from '@renderer/services/geminiService'
-import { AlertCircle, BarChart3, RefreshCw, Star } from 'lucide-react'
+import { AlertCircle, BarChart3, RefreshCw, Send, Star } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@renderer/components/ui/alert'
 import { filterTransactionsByDate, aggregateDataForAi, aggregateTransactionData, formatAggregatedDataSummary } from '@renderer/lib/dataAggregation'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { Textarea } from '@renderer/components/ui/textarea'
+import { Input } from '@renderer/components/ui/input'
 
 interface AiAnalysisViewProps {
   timeFilter: 'all' | 'month' | 'year' | 'week'
 }
 
+interface ChatMessage {
+  role: 'assistant' | 'user'
+  content: string
+  timestamp: Date
+}
+
 export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
   const { transactions, isLoading } = useTransactionStore()
-  const [insights, setInsights] = useState<string | null>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [userInput, setUserInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [apiStatus, setApiStatus] = useState<'initialized' | 'not-configured' | 'checking'>('checking')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   // Check API status
   useEffect(() => {
@@ -96,7 +112,6 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       
       if (filteredTransactions.length === 0) {
         setError('No transactions available for analysis')
-        setInsights(null)
         setLoading(false)
         return
       }
@@ -106,7 +121,6 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       
       if (!summaryData) {
         setError('Could not generate data summary for AI analysis')
-        setInsights(null)
         setLoading(false)
         return
       }
@@ -146,9 +160,16 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
         // Check if the result is an error message from the main process
         if (result.startsWith('Error:')) {
             setError(result);
-            setInsights(null);
+            setMessages([]);
         } else {
-            setInsights(result);
+            // Add the AI's message to our chat history
+            setMessages([
+              {
+                role: 'assistant',
+                content: result,
+                timestamp: new Date()
+              }
+            ]);
             setError(null);
         }
         
@@ -160,21 +181,116 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           "AI analysis is unavailable. Here's a summary of your transactions:\n\n" +
           localSummary
         
-        setInsights(fullSummary)
+        setMessages([
+          {
+            role: 'assistant',
+            content: fullSummary,
+            timestamp: new Date()
+          }
+        ]);
         // Don't set error since we have a fallback, but maybe add a warning insight?
       }
     } catch (err) {
       console.error('Error getting insights:', err)
       setError(`Error: ${err instanceof Error ? err.message : 'Unknown error occurred'}`)
-      setInsights(null)
+      setMessages([]);
     } finally {
       setLoading(false)
+      // Focus the input field after loading is complete
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
     }
   }
 
-  // Format and display insights
-  const renderInsights = () => {
-    if (loading) {
+  // Send user question to AI
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
+    if (!userInput.trim()) return;
+    
+    const userMessage = {
+      role: 'user' as const,
+      content: userInput,
+      timestamp: new Date()
+    };
+    
+    // Add user message to chat
+    setMessages(prevMessages => [...prevMessages, userMessage]);
+    setUserInput('');
+    setLoading(true);
+    
+    try {
+      // Get categories and transaction data for context
+      const categories = useCategoryStore.getState().categories;
+      const filteredTransactions = filterTransactionsByDate(transactions, timeFilter);
+      const summaryData = aggregateDataForAi(filteredTransactions, categories, timeFilter);
+      
+      if (!summaryData) {
+        throw new Error('Could not generate data summary for AI analysis');
+      }
+      
+      // Previous conversation history
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+      // We need to extend the geminiService to have a chat function
+      // For now, we'll simulate it
+      const result = await geminiService.analyzeTransactions({
+        ...summaryData,
+        userQuery: userInput,
+        conversationHistory
+      } as any);
+      
+      if (!result) {
+        throw new Error('AI response timed out or failed');
+      }
+      
+      if (result.startsWith('Error:')) {
+        setError(result);
+      } else {
+        // Add AI response to chat
+        setMessages(prevMessages => [
+          ...prevMessages, 
+          {
+            role: 'assistant',
+            content: result,
+            timestamp: new Date()
+          }
+        ]);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(`Error: ${err instanceof Error ? err.message : 'Unknown error occurred'}`);
+      
+      // Add error message to chat
+      setMessages(prevMessages => [
+        ...prevMessages,
+        {
+          role: 'assistant',
+          content: 'Sorry, I encountered an error processing your request. Please try again.',
+          timestamp: new Date()
+        }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // Handle user pressing Enter (without Shift)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Format and display chat messages
+  const renderChatMessages = () => {
+    if (loading && messages.length === 0) {
       return (
         <div className="space-y-3">
           <Skeleton className="h-4 w-full" />
@@ -187,7 +303,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       )
     }
 
-    if (error) {
+    if (error && messages.length === 0) {
       return (
         <Alert variant="destructive" className="mt-4">
           <AlertCircle className="h-4 w-4" />
@@ -197,7 +313,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       )
     }
 
-    if (!insights) {
+    if (messages.length === 0) {
       return (
         <p className="text-muted-foreground mt-4">
           Click the "Generate Insights" button to get AI-powered analysis of your spending.
@@ -205,22 +321,42 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       )
     }
 
-    // Render the insights with markdown formatting
     return (
-      <div className="prose prose-sm max-w-none dark:prose-invert mt-4">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          components={{
-            p: ({node, ...props}) => <p className="mb-4" {...props} />,
-            h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
-            // Add explicit styling for lists and list items (removed 'ordered' from props)
-            ul: ({node, ...props}) => <ul className="list-disc space-y-1 pl-4 mb-4" {...props} />,
-            ol: ({node, ...props}) => <ol className="list-decimal space-y-1 pl-4 mb-4" {...props} />,
-            li: ({node, ...props}) => <li className="ml-4" {...props} />
-          }}
-        >
-          {insights}
-        </ReactMarkdown>
+      <div className="space-y-4 mb-4">
+        {messages.map((message, index) => (
+          <div 
+            key={index} 
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div 
+              className={`max-w-[85%] rounded-lg px-4 py-2 ${
+                message.role === 'user' 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted'
+              }`}
+            >
+              {message.role === 'user' ? (
+                <p>{message.content}</p>
+              ) : (
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({node, ...props}) => <p className="mb-4" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
+                      ul: ({node, ...props}) => <ul className="list-disc space-y-1 pl-4 mb-4" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal space-y-1 pl-4 mb-4" {...props} />,
+                      li: ({node, ...props}) => <li className="ml-4" {...props} />
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
       </div>
     )
   }
@@ -284,7 +420,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           disabled={loading || apiStatus !== 'initialized' || isLoading}
           size="sm"
         >
-          {loading ? (
+          {loading && messages.length === 0 ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               Analyzing...
@@ -299,7 +435,31 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
       </CardHeader>
       <CardContent>
         {renderApiConfigMessage()}
-        {renderInsights()}
+        <div className="max-h-[500px] overflow-y-auto mb-4">
+          {renderChatMessages()}
+        </div>
+        {messages.length > 0 && (
+          <form onSubmit={handleSendMessage} className="relative">
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="Ask a follow-up question..."
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={loading || apiStatus !== 'initialized'}
+              className="pr-10"
+            />
+            <Button 
+              type="submit" 
+              size="icon" 
+              disabled={loading || !userInput.trim() || apiStatus !== 'initialized'} 
+              className="absolute right-0 top-0 h-full rounded-l-none"
+            >
+              {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   )

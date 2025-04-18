@@ -265,7 +265,10 @@ export class GeminiService {
    * @param summaryData The aggregated AiAnalysisDataSummary object
    * @returns Promise resolving to analysis insights string
    */
-  static async analyzeTransactions(summaryData: AiAnalysisDataSummary): Promise<string | null> {
+  static async analyzeTransactions(summaryData: AiAnalysisDataSummary & { 
+    userQuery?: string; 
+    conversationHistory?: Array<{ role: string; content: string }>; 
+  }): Promise<string | null> {
     try {
       if (!this.isInitialized()) {
         await this.initialize();
@@ -292,7 +295,36 @@ export class GeminiService {
         }).format(amount)
       }
 
-      let prompt = `You are a helpful financial analyst assistant. Your goal is to provide clear, actionable insights based on the user's spending data.
+      // Check if this is a follow-up question or initial analysis
+      const isFollowUp = !!summaryData.userQuery && summaryData.conversationHistory && summaryData.conversationHistory.length > 0;
+
+      let prompt = '';
+      
+      if (isFollowUp) {
+        // This is a follow-up question, create a chat-style prompt
+        prompt = `You are a helpful financial analyst assistant. Your goal is to provide clear, actionable insights based on the user's spending data.
+
+Here is the financial summary for the period: ${summaryData.timePeriod}
+
+FINANCIAL DATA CONTEXT:
+- Total Income: ${formatCurrency(summaryData.totalIncome)}
+- Total Expenses: ${formatCurrency(summaryData.totalExpenses)}
+- Net Income/Savings: ${formatCurrency(summaryData.netAmount)}
+- Essential Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.essential.amount)} (${summaryData.spendingTypeBreakdown.essential.percentage.toFixed(1)}%)
+- Discretionary Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.discretionary.amount)} (${summaryData.spendingTypeBreakdown.discretionary.percentage.toFixed(1)}%)
+- Mixed Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.mixed.amount)} (${summaryData.spendingTypeBreakdown.mixed.percentage.toFixed(1)}%)
+- Top Expense Categories: ${summaryData.expenseBreakdown.slice(0, 5).map(cat => 
+          `${cat.name} (${formatCurrency(cat.amount)}, ${cat.percentage.toFixed(1)}%)`).join(', ')}
+
+PREVIOUS CONVERSATION:
+${summaryData.conversationHistory.map(msg => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n\n')}
+
+USER'S NEW QUESTION: ${summaryData.userQuery}
+
+Please provide a helpful, concise answer to the user's question. You can reference any of the financial data above and previous conversation. Format your response using Markdown for readability. Be specific and base your answer on the actual financial data provided.`;
+      } else {
+        // This is the initial analysis request
+        prompt = `You are a helpful financial analyst assistant. Your goal is to provide clear, actionable insights based on the user's spending data.
 
 Here is the financial summary for the period: ${summaryData.timePeriod}
 
@@ -304,46 +336,46 @@ Overall:
 Spending Breakdown by Category (Sorted by amount):
 `;
 
-      if (summaryData.expenseBreakdown.length > 0) {
-        summaryData.expenseBreakdown.forEach(cat => {
-          const spendingTypeLabel = cat.spendingType ? ` [${cat.spendingType}]` : '';
-          const descriptionText = cat.description ? ` (${cat.description})` : ''; 
-          prompt += `* ${cat.name}${descriptionText}${spendingTypeLabel}: ${formatCurrency(cat.amount)} (${cat.percentage.toFixed(1)}%)\n`;
-        });
-      } else {
-        prompt += `* No categorized expenses found for this period.\n`;
-      }
+        if (summaryData.expenseBreakdown.length > 0) {
+          summaryData.expenseBreakdown.forEach(cat => {
+            const spendingTypeLabel = cat.spendingType ? ` [${cat.spendingType}]` : '';
+            const descriptionText = cat.description ? ` - ${cat.description}` : ''; 
+            prompt += `* ${cat.name}${spendingTypeLabel}: ${formatCurrency(cat.amount)} (${cat.percentage.toFixed(1)}%)${descriptionText}\n`;
+          });
+        } else {
+          prompt += `* No categorized expenses found for this period.\n`;
+        }
 
-      // Add spending type breakdown
-      prompt += `\nSpending by Type:
+        // Add spending type breakdown
+        prompt += `\nSpending by Type:
 * Essential Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.essential.amount)} (${summaryData.spendingTypeBreakdown.essential.percentage.toFixed(1)}%)
 * Discretionary Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.discretionary.amount)} (${summaryData.spendingTypeBreakdown.discretionary.percentage.toFixed(1)}%)
 * Mixed Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.mixed.amount)} (${summaryData.spendingTypeBreakdown.mixed.percentage.toFixed(1)}%)
 * Unclassified Expenses: ${formatCurrency(summaryData.spendingTypeBreakdown.unclassified.amount)} (${summaryData.spendingTypeBreakdown.unclassified.percentage.toFixed(1)}%)\n`;
 
-      if (summaryData.uncategorizedExpenses.count > 0) {
-        prompt += `\nUncategorized Expenses:
+        if (summaryData.uncategorizedExpenses.count > 0) {
+          prompt += `\nUncategorized Expenses:
 * Amount: ${formatCurrency(summaryData.uncategorizedExpenses.amount)}
 * Number of Transactions: ${summaryData.uncategorizedExpenses.count}\n`;
-      }
+        }
 
-      if (summaryData.largestExpense) {
-        const spendingTypeLabel = summaryData.largestExpense.spendingType 
-          ? `\n* Spending Type: ${summaryData.largestExpense.spendingType}` 
-          : '';
-        
-        const categoryDescriptionText = summaryData.largestExpense.categoryDescription
-          ? `\n* Category Description: ${summaryData.largestExpense.categoryDescription}`
-          : '';
-        
-        prompt += `\nLargest Single Expense:
+        if (summaryData.largestExpense) {
+          const spendingTypeLabel = summaryData.largestExpense.spendingType 
+            ? `\n* Spending Type: ${summaryData.largestExpense.spendingType}` 
+            : '';
+          
+          const categoryDescriptionText = summaryData.largestExpense.categoryDescription
+            ? `\n* Category Description: ${summaryData.largestExpense.categoryDescription}`
+            : '';
+          
+          prompt += `\nLargest Single Expense:
 * Description: ${summaryData.largestExpense.description}
 * Amount: ${formatCurrency(summaryData.largestExpense.amount)}
 * Category: ${summaryData.largestExpense.category || 'N/A'}${spendingTypeLabel}${categoryDescriptionText}\n`;
-      }
+        }
 
-      // Append the instructions part
-      prompt += `\nPlease analyze this summary and provide:
+        // Append the instructions part
+        prompt += `\nPlease analyze this summary and provide:
 1. Key observations about spending patterns based on both the category breakdown and spending types (essential vs. discretionary).
 2. Identification of the top 3-5 spending categories and their significance.
 3. Analysis of the balance between essential and discretionary spending.
@@ -351,9 +383,10 @@ Spending Breakdown by Category (Sorted by amount):
 5. A concise summary of the user's spending habits for this period.
 
 Format your response using Markdown. Be clear, concise, and actionable. Avoid generic advice not directly supported by the data.`;
+      }
       // --- End of prompt construction ---
 
-      console.log(`[Gemini Service] Sending prompt to model: ${modelName}\n---\n${prompt}\n---`);
+      console.log(`[Gemini Service] Sending prompt to model: ${modelName}\n---\n${isFollowUp ? 'FOLLOW-UP QUERY' : 'INITIAL ANALYSIS'}\n---`);
 
       const result = await model.generateContent(prompt);
       const response = result.response;

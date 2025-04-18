@@ -31,7 +31,7 @@ interface DatabaseAPI {
       details?: string, 
       existingCategories?: string[]
     ) => Promise<string | null>
-    analyzeTransactions: (transactions: any[]) => Promise<string | null>
+    analyzeTransactions: (data: any) => Promise<string | null>
   }
 }
 

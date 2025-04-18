@@ -320,9 +320,9 @@ function setupIPC(): void {
     }
   })
 
-  ipcMain.handle('gemini:analyze-transactions', async (_, transactions: any[]) => {
+  ipcMain.handle('gemini:analyze-transactions', async (_, data: any) => {
     try {
-      return await GeminiService.analyzeTransactions(transactions)
+      return await GeminiService.analyzeTransactions(data)
     } catch (error) {
       console.error('Error analyzing transactions:', error)
       throw error

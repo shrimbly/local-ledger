@@ -81,7 +81,7 @@ const api = {
     ) => loggedInvoke('gemini:suggest-category', description, amount, details, existingCategories),
     
     // Analyze transactions for insights
-    analyzeTransactions: (transactions: any[]) => loggedInvoke('gemini:analyze-transactions', transactions)
+    analyzeTransactions: (data: any) => loggedInvoke('gemini:analyze-transactions', data)
   },
   
   // Wizard methods
