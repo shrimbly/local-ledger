@@ -329,16 +329,16 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div 
-              className={`max-w-[85%] rounded-lg px-4 py-2 ${
+              className={`max-w-[85%] md:max-w-[75%] rounded-lg px-4 py-3 shadow-sm ${
                 message.role === 'user' 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted'
+                  ? 'bg-primary text-primary-foreground rounded-br-none' 
+                  : 'bg-white dark:bg-gray-800 rounded-bl-none'
               }`}
             >
               {message.role === 'user' ? (
                 <p>{message.content}</p>
               ) : (
-                <div className="prose prose-sm max-w-none dark:prose-invert">
+                <div className="prose prose-sm max-w-none dark:prose-invert prose-headings:mb-2 prose-headings:mt-4 prose-p:leading-relaxed prose-li:my-0.5">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
@@ -346,7 +346,11 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
                       h2: ({node, ...props}) => <h2 className="text-lg font-semibold mt-3 mb-2" {...props} />,
                       ul: ({node, ...props}) => <ul className="list-disc space-y-1 pl-4 mb-4" {...props} />,
                       ol: ({node, ...props}) => <ol className="list-decimal space-y-1 pl-4 mb-4" {...props} />,
-                      li: ({node, ...props}) => <li className="ml-4" {...props} />
+                      li: ({node, ...props}) => <li className="ml-4" {...props} />,
+                      code: ({node, className, ...props}: any) => 
+                        props.inline ? 
+                          <code className="bg-primary/10 dark:bg-primary/20 rounded px-1 py-0.5 text-xs" {...props} /> : 
+                          <code className="block bg-black/5 dark:bg-white/5 rounded p-2 text-xs" {...props} />
                     }}
                   >
                     {message.content}
@@ -419,6 +423,7 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           onClick={fetchInsights} 
           disabled={loading || apiStatus !== 'initialized' || isLoading}
           size="sm"
+          className="bg-primary/90 hover:bg-primary"
         >
           {loading && messages.length === 0 ? (
             <>
@@ -433,13 +438,13 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
           )}
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="max-w-4xl mx-auto">
         {renderApiConfigMessage()}
-        <div className="max-h-[500px] overflow-y-auto mb-4">
+        <div className="max-h-[70vh] overflow-y-auto mb-4 pr-1 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent bg-gray-50 dark:bg-gray-900/30 rounded-md p-4">
           {renderChatMessages()}
         </div>
         {messages.length > 0 && (
-          <form onSubmit={handleSendMessage} className="relative">
+          <form onSubmit={handleSendMessage} className="relative mt-4">
             <Input
               ref={inputRef}
               type="text"
@@ -448,13 +453,13 @@ export function AiAnalysisView({ timeFilter }: AiAnalysisViewProps) {
               onChange={(e) => setUserInput(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={loading || apiStatus !== 'initialized'}
-              className="pr-10"
+              className="pr-12 border-primary/20 focus-visible:ring-primary/70 focus-visible:ring-offset-0 focus:rounded-md bg-muted/40 rounded-md py-6 px-4 h-12 outline-none focus-visible:outline-none"
             />
             <Button 
               type="submit" 
               size="icon" 
               disabled={loading || !userInput.trim() || apiStatus !== 'initialized'} 
-              className="absolute right-0 top-0 h-full rounded-l-none"
+              className="absolute right-1.5 top-1/2 transform -translate-y-1/2 rounded-full h-9 w-9 flex items-center justify-center"
             >
               {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
